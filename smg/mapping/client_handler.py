@@ -3,6 +3,8 @@ import threading
 
 from typing import Optional
 
+from smg.mapping import Message
+
 
 class ClientHandler:
     """TODO"""
@@ -60,3 +62,9 @@ class ClientHandler:
         :param thread:  TODO
         """
         self.__thread = thread
+
+    # PRIVATE METHODS
+
+    def __read_message(self, msg: Message) -> None:
+        # TODO
+        pass
