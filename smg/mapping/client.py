@@ -3,7 +3,7 @@ import socket
 from typing import Tuple
 
 
-class RGBDMappingClient:
+class Client:
     """TODO"""
 
     def __init__(self, endpoint: Tuple[str, int] = ("127.0.0.1", 7851), *, timeout: int = 10):

@@ -4,7 +4,7 @@ import threading
 from typing import Optional
 
 
-class MappingClientHandler:
+class ClientHandler:
     """TODO"""
 
     # CONSTRUCTOR

@@ -5,11 +5,10 @@ import threading
 
 from typing import Dict
 
-from smg.mapping import MappingClientHandler
-from smg.pyoctomap import *
+from smg.mapping import ClientHandler
 
 
-class MappingServer:
+class Server:
     """TODO"""
 
     # CONSTRUCTOR
@@ -20,7 +19,7 @@ class MappingServer:
 
         :param port:    TODO
         """
-        self.__client_handlers: Dict[int, MappingClientHandler] = {}
+        self.__client_handlers: Dict[int, ClientHandler] = {}
         self.__next_client_id: int = 0
         self.__port: int = port
         self.__server_thread: threading.Thread = threading.Thread(target=self.__run_server)
@@ -35,7 +34,7 @@ class MappingServer:
 
     # PRIVATE METHODS
 
-    def __handle_client(self, client_handler: MappingClientHandler) -> None:
+    def __handle_client(self, client_handler: ClientHandler) -> None:
         """
         TODO
 
@@ -81,7 +80,7 @@ class MappingServer:
             client_sock, client_endpoint = server_sock.accept()
             print(f"Accepted connection from client {self.__next_client_id} @ {client_endpoint}")
             with self.__lock:
-                client_handler: MappingClientHandler = MappingClientHandler(
+                client_handler: ClientHandler = ClientHandler(
                     self.__next_client_id, client_sock, self.__should_terminate
                 )
                 client_thread: threading.Thread = threading.Thread(target=self.__handle_client, args=[client_handler])
