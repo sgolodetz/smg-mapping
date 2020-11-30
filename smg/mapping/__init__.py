@@ -1,3 +1,4 @@
+from .mapping_client_handler import MappingClientHandler
 from .mapping_server import MappingServer
 from .monocular_mapping_system import MonocularMappingSystem
 from .rgbd_mapping_client import RGBDMappingClient
