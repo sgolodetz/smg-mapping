@@ -1,6 +1,8 @@
 from .monocular_mapping_system import MonocularMappingSystem
 from .rgbd_mapping_system import RGBDMappingSystem
 
+from .pooled_queue import PooledQueue
+
 from .message import Message
 from .calibration_message import CalibrationMessage
 from .simple_message import SimpleMessage

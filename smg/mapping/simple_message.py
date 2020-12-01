@@ -34,6 +34,7 @@ class SimpleMessage(Message, Generic[T]):
         self.__fmt: str = ""
 
         if t is None:
+            # TODO: This should be moved somewhere more central.
             # Try to get the actual type variable. Note that this is actually quite hard to do in Python, and so
             # we rely on some magic trickery in the latest version of pytypes, which can be installed via:
             #
