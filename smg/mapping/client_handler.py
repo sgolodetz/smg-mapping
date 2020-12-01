@@ -1,10 +1,9 @@
-import numpy as np
 import socket
 import threading
 
-from typing import Optional, TypeVar
+from typing import Optional, Tuple, TypeVar
 
-from smg.mapping import CalibrationMessage, Message
+from smg.mapping import AckMessage, CalibrationMessage, Message, SocketUtil
 
 
 # TYPE VARIABLE
@@ -29,6 +28,7 @@ class ClientHandler:
         """
         self.__client_id: int = client_id
         self.__connection_ok: bool = True
+        self.__intrinsics: Optional[Tuple[float, float, float, float]] = None
         self.__should_terminate: threading.Event = should_terminate
         self.__sock: socket.SocketType = sock
         self.__thread: Optional[threading.Thread] = None
@@ -52,23 +52,40 @@ class ClientHandler:
         return self.__connection_ok
 
     def run_iter(self) -> None:
-        """TODO"""
+        """Run an iteration of the main loop for the client."""
         pass
 
     def run_post(self) -> None:
-        """TODO"""
+        """Run any code that should happen after the main loop for the client."""
+        # Destroy the frame compressor prior to stopping the client handler.
+        # TODO
         pass
 
     def run_pre(self) -> None:
-        """TODO"""
+        """Run any code that should happen before the main loop for the client."""
         # Read a calibration message from the client to get its camera intrinsics.
         calib_msg: CalibrationMessage = CalibrationMessage()
-        self.__connection_ok = self.__read_message(calib_msg)
+        self.__connection_ok = SocketUtil.read_message(self.__sock, calib_msg)
 
         # If the calibration message was successfully read:
         if self.__connection_ok:
+            # Save the camera intrinsics.
+            self.__intrinsics = calib_msg.extract_intrinsics()
+
+            # Print the intrinsics out for debugging purposes.
+            print(f"Received camera intrinsics from client {self.__client_id}: {self.__intrinsics}")
+
+            # Initialise the frame message queue.
             # TODO
-            print(calib_msg.extract_intrinsics())
+
+            # Set up the frame compressor.
+            # TODO
+
+            # Construct a dummy frame message to consume messages that cannot be pushed onto the queue.
+            # TODO
+
+            # Signal to the client that the server is ready.
+            self.__connection_ok = SocketUtil.write_message(self.__sock, AckMessage())
 
     def set_thread(self, thread: threading.Thread) -> None:
         """
@@ -77,19 +94,3 @@ class ClientHandler:
         :param thread:  TODO
         """
         self.__thread = thread
-
-    # PRIVATE METHODS
-
-    def __read_message(self, msg: T) -> bool:
-        """
-        TODO
-
-        :param msg: TODO
-        :return:    TODO
-        """
-        try:
-            data = self.__sock.recv(msg.get_size())
-            np.copyto(msg.get_data(), np.frombuffer(data, dtype=np.uint8))
-            return True
-        except (ConnectionResetError, ValueError):
-            return False

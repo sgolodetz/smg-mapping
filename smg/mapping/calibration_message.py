@@ -7,7 +7,7 @@ from smg.mapping import Message
 
 
 class CalibrationMessage(Message):
-    """TODO"""
+    """A message containing the calibration parameters for an RGB-D camera."""
 
     # CONSTRUCTOR
 
@@ -21,9 +21,9 @@ class CalibrationMessage(Message):
 
     def extract_intrinsics(self) -> Tuple[float, float, float, float]:
         """
-        TODO
+        Extract the camera intrinsics from the message.
 
-        :return:    TODO
+        :return:    The camera intrinsics, as an (fx, fy, cx, cy) tuple.
         """
         return struct.unpack_from(self.__intrinsics_fmt, self.__data, self.__intrinsics_segment[0])
 
