@@ -1,11 +1,10 @@
 from typing import Tuple
 
-from smg.mapping import CalibrationMessage, Client, SimpleMessage
+from smg.mapping import AckMessage, CalibrationMessage, Client
 
 
 def main() -> None:
-    message: SimpleMessage[int] = SimpleMessage[int]()
-    message.set_value(23)
+    message: AckMessage = AckMessage()
     print(message.extract_value())
     # client: Client = Client()
     # calib_msg: CalibrationMessage = CalibrationMessage()

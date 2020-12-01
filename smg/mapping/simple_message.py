@@ -19,20 +19,28 @@ class SimpleMessage(Message, Generic[T]):
 
     # CONSTRUCTOR
 
-    def __init__(self, value: Optional[T] = None):
+    def __init__(self, value: Optional[T] = None, t: Optional[type] = None):
         """
         Construct a simple message.
 
+        .. note::
+            It's not possible to infer t when deriving from SimpleMessage[T]. Subclasses must pass t in explicitly.
+
         :param value:   An optional initial message value.
+        :param t:       The actual type of T (optional in some cases). If None, the class will try to infer it.
         """
         # noinspection PyUnusedLocal
         size: int = 0
         self.__fmt: str = ""
 
-        # Get the actual type variable. Note that this is actually quite hard to do in Python, and so we rely on some
-        # magic trickery in the latest version of pytypes, which can be installed from my Github fork via:
-        # python -m pip install git+https://github.com/sgolodetz/pytypes.git
-        t: type = pytypes.type_util.get_orig_class(self).__args__[0]
+        if t is None:
+            # Try to get the actual type variable. Note that this is actually quite hard to do in Python, and so
+            # we rely on some magic trickery in the latest version of pytypes, which can be installed via:
+            #
+            # python -m pip install git+https://github.com/sgolodetz/pytypes.git
+            #
+            # Importantly, this doesn't work for subclasses of SimpleMessage, which must pass in t explicitly.
+            t = pytypes.type_util.get_orig_class(self).__args__[0]
 
         if t is int:
             self.__fmt = "i"
