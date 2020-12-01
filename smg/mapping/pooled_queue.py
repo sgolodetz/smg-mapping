@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import collections
 import pytypes
+import random
 import threading
 
 from typing import Callable, Deque, Generic, List, Optional, TypeVar
@@ -78,8 +79,7 @@ class PooledQueue(Generic[T]):
         """
         self.__pool_empty_strategy: PooledQueue.EPoolEmptyStrategy = pool_empty_strategy
         if pool_empty_strategy == PooledQueue.PES_REPLACE_RANDOM:
-            # TODO
-            pass
+            self.__rng: random.Random = random.Random(12345)
 
         self.__lock: threading.Lock = threading.Lock()
         self.__maker: Optional[Callable[[], T]] = None
@@ -116,8 +116,10 @@ class PooledQueue(Generic[T]):
                 elif self.__pool_empty_strategy == PooledQueue.PES_GROW:
                     self.__pool.append(self.__maker())
                 elif self.__pool_empty_strategy == PooledQueue.PES_REPLACE_RANDOM:
-                    # TODO
-                    pass
+                    offset: int = self.__rng.randrange(0, len(self.__queue))
+                    if offset != 0:
+                        self.__queue[0], self.__queue[offset] = self.__queue[offset], self.__queue[0]
+                    self.__pool.append(self.__queue.popleft())
                 elif self.__pool_empty_strategy == PooledQueue.PES_WAIT:
                     while len(self.__pool) == 0:
                         self.__pool_non_empty.wait(0.1)
