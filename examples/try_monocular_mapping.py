@@ -8,11 +8,11 @@ from typing import Dict, Optional
 from smg.imagesources import RGBFromRGBDImageSource, RGBImageSource
 from smg.mapping import MonocularMappingSystem
 from smg.open3d import ReconstructionUtil, VisualisationUtil
-from smg.openni import OpenNICamera, RGBDOpenNICamera
+from smg.openni import OpenNICamera, OpenNIRGBDImageSource
 from smg.pyorbslam2 import MonocularTracker
 from smg.pyremode import DepthEstimator, TemporalKeyframeDepthEstimator
 from smg.rotory.drone_factory import DroneFactory
-from smg.rotory.rgb_drone_camera import RGBDroneCamera
+from smg.rotory.drone_rgb_image_source import DroneRGBImageSource
 
 
 def main():
@@ -36,13 +36,13 @@ def main():
         # FIXME: This is duplicate code - factor it out.
         source_type: str = args["source_type"]
         if source_type == "kinect":
-            image_source = RGBFromRGBDImageSource(RGBDOpenNICamera(OpenNICamera(mirror_images=True)))
+            image_source = RGBFromRGBDImageSource(OpenNIRGBDImageSource(OpenNICamera(mirror_images=True)))
         else:
             kwargs: Dict[str, dict] = {
                 "ardrone2": dict(print_commands=False, print_control_messages=False, print_navdata_messages=False),
                 "tello": dict(print_commands=False, print_responses=False, print_state_messages=False)
             }
-            image_source = RGBDroneCamera(DroneFactory.make_drone(source_type, **kwargs[source_type]))
+            image_source = DroneRGBImageSource(DroneFactory.make_drone(source_type, **kwargs[source_type]))
 
         # Construct the depth estimator.
         depth_estimator: DepthEstimator = TemporalKeyframeDepthEstimator(

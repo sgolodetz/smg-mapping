@@ -7,7 +7,7 @@ from typing import Optional
 
 from smg.mapping import RGBDMappingSystem
 from smg.open3d import ReconstructionUtil, VisualisationUtil
-from smg.openni import OpenNICamera, RGBDOpenNICamera
+from smg.openni import OpenNICamera, OpenNIRGBDImageSource
 from smg.pyorbslam2 import RGBDTracker
 from smg.pyremode import DepthEstimator, TemporalKeyframeDepthEstimator
 
@@ -34,7 +34,7 @@ def main():
                 denoising_iterations=400, max_images_per_keyframe=30
             )
             with RGBDMappingSystem(
-                RGBDOpenNICamera(camera), tracker, depth_estimator, output_dir=args.get("output_dir")
+                OpenNIRGBDImageSource(camera), tracker, depth_estimator, output_dir=args.get("output_dir")
             ) as system:
                 tsdf = system.run()
 
