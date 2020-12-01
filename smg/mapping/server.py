@@ -45,6 +45,7 @@ class Server:
 
         # Run the pre-loop code for the client.
         client_handler.run_pre()
+        # TODO: Better handle what happens when the connection drops during the pre-loop code.
 
         # Add the client handler to the dictionary of handlers for active clients.
         with self.__lock:

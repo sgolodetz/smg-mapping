@@ -1,10 +1,18 @@
+import numpy as np
 import socket
 import threading
 
-from typing import Optional
+from typing import Optional, TypeVar
 
-from smg.mapping import Message
+from smg.mapping import CalibrationMessage, Message
 
+
+# TYPE VARIABLE
+
+T = TypeVar('T', bound=Message)
+
+
+# MAIN CLASS
 
 class ClientHandler:
     """TODO"""
@@ -53,7 +61,14 @@ class ClientHandler:
 
     def run_pre(self) -> None:
         """TODO"""
-        pass
+        # Read a calibration message from the client to get its camera intrinsics.
+        calib_msg: CalibrationMessage = CalibrationMessage()
+        self.__connection_ok = self.__read_message(calib_msg)
+
+        # If the calibration message was successfully read:
+        if self.__connection_ok:
+            # TODO
+            print(calib_msg.extract_intrinsics())
 
     def set_thread(self, thread: threading.Thread) -> None:
         """
@@ -65,6 +80,16 @@ class ClientHandler:
 
     # PRIVATE METHODS
 
-    def __read_message(self, msg: Message) -> None:
-        # TODO
-        pass
+    def __read_message(self, msg: T) -> bool:
+        """
+        TODO
+
+        :param msg: TODO
+        :return:    TODO
+        """
+        try:
+            data = self.__sock.recv(msg.get_size())
+            np.copyto(msg.get_data(), np.frombuffer(data, dtype=np.uint8))
+            return True
+        except (ConnectionResetError, ValueError):
+            return False

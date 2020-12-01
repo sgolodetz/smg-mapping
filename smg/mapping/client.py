@@ -31,5 +31,7 @@ class Client:
         """
         connection_ok: bool = True
 
+        self.__sock.sendall(msg.get_data().tobytes())
+
         # TODO
         pass
