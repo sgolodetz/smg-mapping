@@ -33,6 +33,26 @@ class FrameHeaderMessage(Message):
 
     # PUBLIC METHODS
 
+    def extract_depth_image_byte_size(self) -> int:
+        """TODO"""
+        return struct.unpack_from(
+            self.__image_byte_size_fmt, self.__data, self.__depth_image_byte_size_segment[0]
+        )[0]
+
+    def extract_depth_image_size(self) -> Tuple[int, int]:
+        """TODO"""
+        return struct.unpack_from(self.__image_size_fmt, self.__data, self.__depth_image_size_segment[0])
+
+    def extract_rgb_image_byte_size(self) -> int:
+        """TODO"""
+        return struct.unpack_from(
+            self.__image_byte_size_fmt, self.__data, self.__rgb_image_byte_size_segment[0]
+        )[0]
+
+    def extract_rgb_image_size(self) -> Tuple[int, int]:
+        """TODO"""
+        return struct.unpack_from(self.__image_size_fmt, self.__data, self.__rgb_image_size_segment[0])
+
     def get_data(self) -> np.ndarray:
         """
         Get the message data.

@@ -3,7 +3,7 @@ import threading
 
 from typing import Optional, Tuple, TypeVar
 
-from smg.mapping import AckMessage, CalibrationMessage, FrameMessage, Message, SocketUtil
+from smg.mapping import AckMessage, CalibrationMessage, FrameHeaderMessage, FrameMessage, Message, SocketUtil
 from smg.utility import PooledQueue
 
 
@@ -56,7 +56,20 @@ class ClientHandler:
 
     def run_iter(self) -> None:
         """Run an iteration of the main loop for the client."""
-        pass
+        # Try to read a frame header message.
+        header_msg: FrameHeaderMessage = FrameHeaderMessage()
+        self.__connection_ok = SocketUtil.read_message(self.__sock, header_msg)
+        if self.__connection_ok:
+            # If that succeeds, set up a frame message accordingly.
+            frame_msg: FrameMessage = FrameMessage(
+                header_msg.extract_rgb_image_size(),
+                header_msg.extract_depth_image_size(),
+                header_msg.extract_rgb_image_byte_size(),
+                header_msg.extract_depth_image_byte_size()
+            )
+
+            # TODO
+            pass
 
     def run_post(self) -> None:
         """Run any code that should happen after the main loop for the client."""

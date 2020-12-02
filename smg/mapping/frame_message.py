@@ -11,7 +11,7 @@ class FrameMessage(Message):
 
     # CONSTRUCTOR
 
-    def __init__(self, rgb_image_size: Tuple[int, int], depth_image_size: Tuple[int, int], *,
+    def __init__(self, rgb_image_size: Tuple[int, int], depth_image_size: Tuple[int, int],
                  rgb_image_byte_size: Optional[int] = None, depth_image_byte_size: Optional[int] = None):
         """
         Construct an RGB-D frame message.
