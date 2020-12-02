@@ -20,7 +20,7 @@ class Client:
         :param timeout:     The socket timeout to use (in seconds).
         """
         self.__alive: bool = False
-        self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage]()
+        self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage](PooledQueue.PES_DISCARD)
         self.__message_sender_thread: Optional[threading.Thread] = None
 
         try:

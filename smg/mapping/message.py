@@ -1,31 +1,45 @@
 import numpy as np
 
-from abc import ABC, abstractmethod
-from typing import Tuple
+from abc import ABC
+from typing import cast, Optional, Tuple
 
 
 class Message(ABC):
     """A message that can be sent across a network."""
 
-    # PUBLIC ABSTRACT METHODS
+    # CONSTRUCTOR
 
-    @abstractmethod
+    def __init__(self):
+        self._data: Optional[np.ndarray] = None
+
+    # PUBLIC METHODS
+
     def get_data(self) -> np.ndarray:
         """
         Get the message data.
 
         :return:    Get the message data.
         """
-        pass
+        return cast(np.ndarray, self._data)
 
-    @abstractmethod
     def get_size(self) -> int:
         """
         Get the size of the message.
 
         :return:    The size of the message.
         """
-        pass
+        return len(self.get_data())
+
+    # PROTECTED METHODS
+
+    def _data_for(self, segment: Tuple[int, int]) -> np.ndarray:
+        """
+        TODO
+
+        :param segment:     The segment.
+        :return:            TODO
+        """
+        return self.get_data()[segment[0]:Message._end_of(segment)]
 
     # PROTECTED STATIC METHODS
 

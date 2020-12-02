@@ -1,3 +1,4 @@
+import cv2
 import numpy as np
 
 from typing import cast, Optional, Tuple
@@ -17,13 +18,14 @@ def main() -> None:
         print(calib_msg.extract_image_size(), calib_msg.extract_intrinsics())
         client.send_calibration_message(calib_msg)
 
-        rgb_image: np.ndarray = np.zeros((image_size[0], image_size[1], 3), dtype=np.uint8)
+        rgb_image: np.ndarray = cv2.imread("C:/smglib/smg-mapping/output-kinect/frame-000000.color.png")  # np.zeros((image_size[0], image_size[1], 3), dtype=np.uint8)
         depth_image: np.ndarray = np.zeros(image_size, dtype=np.float32)
         with client.begin_push_frame_message() as push_handler:
             elt: Optional[FrameMessage] = push_handler.get()
             if elt:
                 msg: FrameMessage = cast(FrameMessage, elt)
                 msg.set_frame_index(23)
+                msg.set_rgb_image_data(rgb_image.reshape(-1))
                 # TODO
     except RuntimeError as e:
         print(e)

@@ -26,6 +26,8 @@ class FrameMessage(Message):
         :param rgb_image_byte_size:     The size (in bytes) of the memory used to store the frame's RGB image.
         :param depth_image_byte_size:   The size (in bytes) of the memory used to store the frame's depth image.
         """
+        super().__init__()
+
         if rgb_image_byte_size is None:
             rgb_image_byte_size = rgb_image_size[0] * rgb_image_size[1] * struct.calcsize("<BBB")
         if depth_image_byte_size is None:
@@ -52,17 +54,9 @@ class FrameMessage(Message):
             Message._end_of(self.__rgb_image_segment), depth_image_byte_size
         )
 
-        self.__data: np.ndarray = np.zeros(Message._end_of(self.__depth_image_segment), dtype=np.uint8)
+        self._data = np.zeros(Message._end_of(self.__depth_image_segment), dtype=np.uint8)
 
     # PUBLIC METHODS
-
-    def get_data(self) -> np.ndarray:
-        """
-        Get the message data.
-
-        :return:    Get the message data.
-        """
-        return self.__data
 
     def get_depth_image_byte_size(self) -> int:
         """TODO"""
@@ -80,6 +74,10 @@ class FrameMessage(Message):
         """TODO"""
         return self.__rgb_image_byte_size
 
+    def get_rgb_image_data(self) -> np.ndarray:
+        """TODO"""
+        return self._data_for(self.__rgb_image_segment)
+
     def get_rgb_image_size(self) -> Tuple[int, int]:
         """
         Get the dimensions of the frame's RGB image.
@@ -88,18 +86,14 @@ class FrameMessage(Message):
         """
         return self.__rgb_image_size
 
-    def get_size(self) -> int:
-        """
-        Get the size of the message.
-
-        :return:    The size of the message.
-        """
-        return len(self.__data)
-
     def set_frame_index(self, frame_index: int) -> None:
         """
         Copy a frame index into the appropriate byte segment in the message.
 
         :param frame_index: The frame index.
         """
-        struct.pack_into(self.__frame_index_fmt, self.__data, self.__frame_index_segment[0], frame_index)
+        struct.pack_into(self.__frame_index_fmt, self._data, self.__frame_index_segment[0], frame_index)
+
+    def set_rgb_image_data(self, rgb_image_data: np.ndarray) -> None:
+        """TODO"""
+        np.copyto(self._data_for(self.__rgb_image_segment), rgb_image_data)

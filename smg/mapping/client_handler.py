@@ -1,3 +1,4 @@
+import cv2
 import numpy as np
 import socket
 import threading
@@ -30,7 +31,7 @@ class ClientHandler:
         """
         self.__client_id: int = client_id
         self.__connection_ok: bool = True
-        self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage]()
+        self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage](PooledQueue.PES_DISCARD)
         self.__image_size: Optional[Tuple[int, int]] = None
         self.__intrinsics: Optional[Tuple[float, float, float, float]] = None
         self.__should_terminate: threading.Event = should_terminate
@@ -80,6 +81,11 @@ class ClientHandler:
                     if elt is not None:
                         msg: FrameMessage = cast(FrameMessage, elt)
                         np.copyto(msg.get_data(), frame_msg.get_data())
+
+                        # TEMPORARY
+                        rgb_image: np.ndarray = msg.get_rgb_image_data().reshape((*msg.get_rgb_image_size(), 3))
+                        cv2.imshow("Received Image", rgb_image)
+                        cv2.waitKey()
 
                 self.__connection_ok = SocketUtil.write_message(self.__sock, AckMessage())
 

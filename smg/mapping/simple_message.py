@@ -29,6 +29,8 @@ class SimpleMessage(Message, Generic[T]):
         :param value:   An optional initial message value.
         :param t:       The actual type of T (optional in some cases). If None, the class will try to infer it.
         """
+        super().__init__()
+
         # noinspection PyUnusedLocal
         size: int = 0
         self.__fmt: str = ""
@@ -49,7 +51,7 @@ class SimpleMessage(Message, Generic[T]):
         else:
             raise RuntimeError(f"Cannot construct SimpleMessage with unsupported type {t.__name__}")
 
-        self.__data: np.ndarray = np.zeros(size, dtype=np.uint8)
+        self._data = np.zeros(size, dtype=np.uint8)
 
         if value is not None:
             self.set_value(value)
@@ -62,23 +64,7 @@ class SimpleMessage(Message, Generic[T]):
 
         :return:    The message value.
         """
-        return struct.unpack_from(self.__fmt, self.__data, 0)[0]
-
-    def get_data(self) -> np.ndarray:
-        """
-        Get the message data.
-
-        :return:    Get the message data.
-        """
-        return self.__data
-
-    def get_size(self) -> int:
-        """
-        Get the size of the message.
-
-        :return:    The size of the message.
-        """
-        return len(self.__data)
+        return struct.unpack_from(self.__fmt, self._data, 0)[0]
 
     def set_value(self, value: T) -> None:
         """
@@ -86,4 +72,4 @@ class SimpleMessage(Message, Generic[T]):
 
         :param value:   The message value.
         """
-        struct.pack_into(self.__fmt, self.__data, 0, value)
+        struct.pack_into(self.__fmt, self._data, 0, value)
