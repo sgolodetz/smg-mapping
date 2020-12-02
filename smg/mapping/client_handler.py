@@ -76,6 +76,7 @@ class ClientHandler:
             print(f"Received camera intrinsics from client {self.__client_id}: {self.__intrinsics}")
 
             # Initialise the frame message queue.
+            capacity: int = 5
             # TODO
 
             # Set up the frame compressor.

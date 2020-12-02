@@ -3,6 +3,7 @@ from .rgbd_mapping_system import RGBDMappingSystem
 
 from .message import Message
 from .calibration_message import CalibrationMessage
+from .frame_message import FrameMessage
 from .simple_message import SimpleMessage
 from .ack_message import AckMessage
 
