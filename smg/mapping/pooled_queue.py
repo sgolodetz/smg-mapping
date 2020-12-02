@@ -5,7 +5,7 @@ import pytypes
 import random
 import threading
 
-from typing import Callable, Deque, Generic, List, Optional, TypeVar
+from typing import Callable, Deque, Generic, Optional, TypeVar
 
 
 # TYPE VARIABLE
@@ -98,7 +98,7 @@ class PooledQueue(Generic[T]):
             In a pooled queue, a push operation is not instantaneous. First, the caller calls begin_push().
             This returns a push handler, which allows the caller to access the element (if any) that is to
             be pushed onto the queue. The caller then writes into this element, rather than constructing a
-            new element from scratch. Finally, the __exit__ function of the push handler calls end_push()
+            new element from scratch. Finally, the __exit__ function of the push handler calls _end_push()
             to actually push the element onto the queue.
 
         :return:    A push handler that will handle the process of pushing an element onto the queue.
