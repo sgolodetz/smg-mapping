@@ -29,7 +29,7 @@ class FrameMessage(Message):
         if rgb_image_byte_size is None:
             rgb_image_byte_size = rgb_image_size[0] * rgb_image_size[1] * struct.calcsize("<BBB")
         if depth_image_byte_size is None:
-            depth_image_byte_size = depth_image_size[0] * depth_image_size[1] * struct.calcsize("<f")
+            depth_image_byte_size = depth_image_size[0] * depth_image_size[1] * struct.calcsize("<H")
 
         self.__depth_image_byte_size: int = depth_image_byte_size
         self.__depth_image_size: Tuple[int, int] = depth_image_size

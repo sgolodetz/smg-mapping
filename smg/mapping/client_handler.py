@@ -1,7 +1,8 @@
+import numpy as np
 import socket
 import threading
 
-from typing import Optional, Tuple, TypeVar
+from typing import cast, Optional, Tuple, TypeVar
 
 from smg.mapping import AckMessage, CalibrationMessage, FrameHeaderMessage, FrameMessage, Message, SocketUtil
 from smg.utility import PooledQueue
@@ -60,6 +61,7 @@ class ClientHandler:
         header_msg: FrameHeaderMessage = FrameHeaderMessage()
         self.__connection_ok = SocketUtil.read_message(self.__sock, header_msg)
         if self.__connection_ok:
+            print("Received header message")
             # If that succeeds, set up a frame message accordingly.
             frame_msg: FrameMessage = FrameMessage(
                 header_msg.extract_rgb_image_size(),
@@ -68,8 +70,18 @@ class ClientHandler:
                 header_msg.extract_depth_image_byte_size()
             )
 
-            # TODO
-            pass
+            # Now, read the frame message itself.
+            self.__connection_ok = SocketUtil.read_message(self.__sock, frame_msg)
+            if self.__connection_ok:
+                print("Received frame message")
+                # TODO: Uncompression, eventually.
+                with self.__frame_message_queue.begin_push() as push_handler:
+                    elt: Optional[FrameMessage] = push_handler.get()
+                    if elt is not None:
+                        msg: FrameMessage = cast(FrameMessage, elt)
+                        np.copyto(msg.get_data(), frame_msg.get_data())
+
+                self.__connection_ok = SocketUtil.write_message(self.__sock, AckMessage())
 
     def run_post(self) -> None:
         """Run any code that should happen after the main loop for the client."""
