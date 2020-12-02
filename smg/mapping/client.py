@@ -3,7 +3,8 @@ import threading
 
 from typing import Optional, Tuple
 
-from smg.mapping import AckMessage, CalibrationMessage, SocketUtil
+from smg.mapping import AckMessage, CalibrationMessage, FrameMessage, SocketUtil
+from smg.utility import PooledQueue
 
 
 class Client:
@@ -19,6 +20,7 @@ class Client:
         :param timeout:     The socket timeout to use (in seconds).
         """
         self.__alive: bool = False
+        self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage]()
         self.__message_sender_thread: Optional[threading.Thread] = None
 
         try:
@@ -39,16 +41,24 @@ class Client:
 
     # PUBLIC METHODS
 
-    def send_calibration_message(self, msg: CalibrationMessage) -> None:
+    def begin_push_frame_message(self) -> PooledQueue[FrameMessage].PushHandler:
+        """
+        Start the push of a frame message so that it can be sent to the server.
+
+        :return:     A push handler that will handle the process of pushing a frame message onto the queue.
+        """
+        return self.__frame_message_queue.begin_push()
+
+    def send_calibration_message(self, calib_msg: CalibrationMessage) -> None:
         """
         Send a calibration message to the server.
 
-        :param msg:     The message to send.
+        :param calib_msg:   The calibration message.
         """
         connection_ok: bool = True
 
         # Send the message to the server.
-        connection_ok = connection_ok and SocketUtil.write_message(self.__sock, msg)
+        connection_ok = connection_ok and SocketUtil.write_message(self.__sock, calib_msg)
 
         # Wait for an acknowledgement (note that this is blocking, unless the connection fails).
         ack_msg: AckMessage = AckMessage()
@@ -59,7 +69,9 @@ class Client:
             raise RuntimeError("Error: Failed to send calibration message")
 
         # Initialise the frame message queue.
-        # TODO
+        capacity: int = 1
+        image_size: Tuple[int, int] = calib_msg.extract_image_size()
+        self.__frame_message_queue.initialise(capacity, lambda: FrameMessage(image_size, image_size))
 
         # Set up the frame compressor.
         # TODO

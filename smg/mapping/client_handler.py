@@ -3,7 +3,8 @@ import threading
 
 from typing import Optional, Tuple, TypeVar
 
-from smg.mapping import AckMessage, CalibrationMessage, Message, SocketUtil
+from smg.mapping import AckMessage, CalibrationMessage, FrameMessage, Message, SocketUtil
+from smg.utility import PooledQueue
 
 
 # TYPE VARIABLE
@@ -28,6 +29,8 @@ class ClientHandler:
         """
         self.__client_id: int = client_id
         self.__connection_ok: bool = True
+        self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage]()
+        self.__image_size: Optional[Tuple[int, int]] = None
         self.__intrinsics: Optional[Tuple[float, float, float, float]] = None
         self.__should_terminate: threading.Event = should_terminate
         self.__sock: socket.SocketType = sock
@@ -69,15 +72,19 @@ class ClientHandler:
 
         # If the calibration message was successfully read:
         if self.__connection_ok:
-            # Save the camera intrinsics.
+            # Save the camera parameters.
+            self.__image_size = calib_msg.extract_image_size()
             self.__intrinsics = calib_msg.extract_intrinsics()
 
-            # Print the intrinsics out for debugging purposes.
-            print(f"Received camera intrinsics from client {self.__client_id}: {self.__intrinsics}")
+            # Print the camera parameters out for debugging purposes.
+            print(
+                f"Received camera parameters from client {self.__client_id}: {self.__image_size}, {self.__intrinsics}"
+            )
 
             # Initialise the frame message queue.
             capacity: int = 5
-            # TODO
+            image_size: Tuple[int, int] = calib_msg.extract_image_size()
+            self.__frame_message_queue.initialise(capacity, lambda: FrameMessage(image_size, image_size))
 
             # Set up the frame compressor.
             # TODO
