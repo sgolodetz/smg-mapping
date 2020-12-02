@@ -22,6 +22,7 @@ class Client:
         self.__alive: bool = False
         self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage](PooledQueue.PES_DISCARD)
         self.__message_sender_thread: Optional[threading.Thread] = None
+        self.__should_terminate: threading.Event = threading.Event()
 
         try:
             self.__sock: socket.SocketType = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -35,11 +36,17 @@ class Client:
 
     def __del__(self):
         """Destroy the client."""
-        if self.__alive:
-            self.__sock.shutdown(socket.SHUT_RDWR)
-            self.__sock.close()
+        self.terminate()
 
-            # TODO: Make sure the message sender thread terminates (if it's running).
+    # SPECIAL METHODS
+
+    def __enter__(self):
+        """TODO"""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """TODO"""
+        self.terminate()
 
     # PUBLIC METHODS
 
@@ -82,6 +89,15 @@ class Client:
         self.__message_sender_thread = threading.Thread(target=self.__run_message_sender)
         self.__message_sender_thread.start()
 
+    def terminate(self) -> None:
+        """Tell the client to terminate."""
+        if self.__alive:
+            self.__should_terminate.set()
+            self.__message_sender_thread.join()
+            self.__sock.shutdown(socket.SHUT_RDWR)
+            self.__sock.close()
+            self.__alive = False
+
     # PRIVATE METHODS
 
     def __run_message_sender(self) -> None:
@@ -90,9 +106,14 @@ class Client:
 
         connection_ok: bool = True
 
-        while connection_ok:
-            # Read the first frame message from the queue (this will block until a message is available).
-            frame_msg: FrameMessage = self.__frame_message_queue.peek()
+        while connection_ok and not self.__should_terminate.is_set():
+            # Try to read the first frame message from the queue (this will block until a message is available,
+            # except when the termination flag is set, in which case it will return None).
+            frame_msg: Optional[FrameMessage] = self.__frame_message_queue.peek(self.__should_terminate)
+
+            # If the termination flag is set, exit.
+            if self.__should_terminate.is_set():
+                break
 
             # Make the frame header message.
             # TODO: Ultimately, we'll do some compression here, but this will do for now.

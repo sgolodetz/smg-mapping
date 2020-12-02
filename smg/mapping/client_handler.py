@@ -82,12 +82,12 @@ class ClientHandler:
                         msg: FrameMessage = cast(FrameMessage, elt)
                         np.copyto(msg.get_data(), frame_msg.get_data())
 
-                        # TEMPORARY
-                        rgb_image: np.ndarray = msg.get_rgb_image_data().reshape((*msg.get_rgb_image_size(), 3))
-                        cv2.imshow("Received Image", rgb_image)
-                        cv2.waitKey()
-
                 self.__connection_ok = SocketUtil.write_message(self.__sock, AckMessage())
+
+                # TEMPORARY
+                rgb_image: np.ndarray = frame_msg.get_rgb_image_data().reshape((*frame_msg.get_rgb_image_size(), 3))
+                cv2.imshow("Received Image", rgb_image)
+                cv2.waitKey()
 
     def run_post(self) -> None:
         """Run any code that should happen after the main loop for the client."""
