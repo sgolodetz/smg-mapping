@@ -3,7 +3,7 @@ import threading
 
 from typing import Optional, Tuple
 
-from smg.mapping import AckMessage, CalibrationMessage, FrameMessage, SocketUtil
+from smg.mapping import AckMessage, CalibrationMessage, FrameHeaderMessage, FrameMessage, SocketUtil
 from smg.utility import PooledQueue
 
 
@@ -38,6 +38,8 @@ class Client:
         if self.__alive:
             self.__sock.shutdown(socket.SHUT_RDWR)
             self.__sock.close()
+
+            # TODO: Make sure the message sender thread terminates (if it's running).
 
     # PUBLIC METHODS
 
@@ -83,5 +85,29 @@ class Client:
     # PRIVATE METHODS
 
     def __run_message_sender(self) -> None:
-        # TODO
-        pass
+        """Send frame messages from the message queue across to the server."""
+        ack_msg: AckMessage = AckMessage()
+
+        connection_ok: bool = True
+
+        while connection_ok:
+            # Read the first frame message from the queue (this will block until a message is available).
+            frame_msg: FrameMessage = self.__frame_message_queue.peek()
+
+            # Make the frame header message.
+            # TODO: Ultimately, we'll do some compression here, but this will do for now.
+            header_msg: FrameHeaderMessage = FrameHeaderMessage()
+            header_msg.set_depth_image_byte_size(frame_msg.get_depth_image_byte_size())
+            header_msg.set_depth_image_size(frame_msg.get_depth_image_size())
+            header_msg.set_rgb_image_byte_size(frame_msg.get_rgb_image_byte_size())
+            header_msg.set_rgb_image_size(frame_msg.get_rgb_image_size())
+
+            # First send the frame header message, then send the frame message, then wait for an acknowledgement
+            # from the server. We chain all of these with 'and' so as to early out in case of failure.
+            connection_ok = connection_ok and \
+                SocketUtil.write_message(self.__sock, header_msg) and \
+                SocketUtil.write_message(self.__sock, frame_msg) and \
+                SocketUtil.read_message(self.__sock, ack_msg)
+
+            # Remove the frame message that we have just sent from the queue.
+            self.__frame_message_queue.pop()

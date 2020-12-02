@@ -15,17 +15,17 @@ T = TypeVar('T', bound=Message)
 # MAIN CLASS
 
 class ClientHandler:
-    """TODO"""
+    """Used to manage the connection to a client."""
 
     # CONSTRUCTOR
 
     def __init__(self, client_id: int, sock: socket.SocketType, should_terminate: threading.Event):
         """
-        TODO
+        Construct a client handler.
 
-        :param client_id:           TODO
-        :param sock:                TODO
-        :param should_terminate:    TODO
+        :param client_id:           The ID used by the server to refer to the client.
+        :param sock:                The socket used to communicate with the client.
+        :param should_terminate:    Whether or not the server should terminate (read-only, set within the server).
         """
         self.__client_id: int = client_id
         self.__connection_ok: bool = True
@@ -40,17 +40,17 @@ class ClientHandler:
 
     def get_client_id(self) -> int:
         """
-        TODO
+        Get the ID used by the server to refer to the client.
 
-        :return:    TODO
+        :return:    The ID used by the server to refer to the client.
         """
         return self.__client_id
 
     def is_connection_ok(self) -> bool:
         """
-        TODO
+        Get whether the connection is still ok (tracks whether or not the most recent read/write succeeded).
 
-        :return:    TODO
+        :return:    True, if the connection is still ok, or False otherwise.
         """
         return self.__connection_ok
 
@@ -97,8 +97,8 @@ class ClientHandler:
 
     def set_thread(self, thread: threading.Thread) -> None:
         """
-        TODO
+        Set the thread that manages communication with the client.
 
-        :param thread:  TODO
+        :param thread:  The thread that manages communication with the client.
         """
         self.__thread = thread
