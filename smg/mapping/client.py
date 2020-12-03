@@ -118,10 +118,10 @@ class Client:
             # Make the frame header message.
             # TODO: Ultimately, we'll do some compression here, but this will do for now.
             header_msg: FrameHeaderMessage = FrameHeaderMessage()
-            header_msg.set_depth_image_byte_size(frame_msg.get_depth_image_byte_size())
-            header_msg.set_depth_image_size(frame_msg.get_depth_image_size())
-            header_msg.set_rgb_image_byte_size(frame_msg.get_rgb_image_byte_size())
-            header_msg.set_rgb_image_size(frame_msg.get_rgb_image_size())
+            header_msg.set_image_byte_size(0, frame_msg.get_rgb_image_byte_size())
+            header_msg.set_image_size(0, frame_msg.get_rgb_image_size())
+            header_msg.set_image_byte_size(1, frame_msg.get_depth_image_byte_size())
+            header_msg.set_image_size(1, frame_msg.get_depth_image_size())
 
             # First send the frame header message, then send the frame message, then wait for an acknowledgement
             # from the server. We chain all of these with 'and' so as to early out in case of failure.

@@ -3,7 +3,7 @@ import numpy as np
 import socket
 import threading
 
-from typing import cast, Optional, Tuple, TypeVar
+from typing import cast, List, Optional, Tuple, TypeVar
 
 from smg.mapping import AckMessage, CalibrationMessage, FrameHeaderMessage, FrameMessage, Message, SocketUtil
 from smg.utility import PooledQueue
@@ -64,12 +64,9 @@ class ClientHandler:
         if self.__connection_ok:
             print("Received header message")
             # If that succeeds, set up a frame message accordingly.
-            frame_msg: FrameMessage = FrameMessage(
-                header_msg.extract_rgb_image_size(),
-                header_msg.extract_depth_image_size(),
-                header_msg.extract_rgb_image_byte_size(),
-                header_msg.extract_depth_image_byte_size()
-            )
+            image_sizes: List[Tuple[int, int]] = header_msg.extract_image_sizes()
+            image_byte_sizes: List[int] = header_msg.extract_image_byte_sizes()
+            frame_msg: FrameMessage = FrameMessage(*image_sizes[:2], *image_byte_sizes[:2])
 
             # Now, read the frame message itself.
             self.__connection_ok = SocketUtil.read_message(self.__sock, frame_msg)

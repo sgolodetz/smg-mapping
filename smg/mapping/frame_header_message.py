@@ -1,13 +1,13 @@
 import numpy as np
 import struct
 
-from typing import Tuple
+from typing import List, Tuple
 
 from smg.mapping import Message
 
 
 class FrameHeaderMessage(Message):
-    """A message containing the sizes (in bytes) and dimensions of the images for a single RGB-D frame."""
+    """A message containing the sizes (in bytes) and dimensions of the images for a single frame."""
 
     # CONSTRUCTOR
 
@@ -15,78 +15,64 @@ class FrameHeaderMessage(Message):
         """Construct a frame header message."""
         super().__init__()
 
+        max_images: int = 2
         self.__image_byte_size_fmt: str = "<i"
+        self.__image_byte_sizes_fmt: str = "<" + "i" * max_images
         self.__image_size_fmt: str = "<ii"
+        self.__image_sizes_fmt: str = "<" + "ii" * max_images
 
-        self.__depth_image_byte_size_segment: Tuple[int, int] = (
-            0, struct.calcsize(self.__image_byte_size_fmt)
+        self.__image_byte_sizes_segment: Tuple[int, int] = (
+            0, struct.calcsize(self.__image_byte_sizes_fmt)
         )
-        self.__depth_image_size_segment: Tuple[int, int] = (
-            Message._end_of(self.__depth_image_byte_size_segment), struct.calcsize(self.__image_size_fmt)
-        )
-        self.__rgb_image_byte_size_segment: Tuple[int, int] = (
-            Message._end_of(self.__depth_image_size_segment), struct.calcsize(self.__image_byte_size_fmt)
-        )
-        self.__rgb_image_size_segment: Tuple[int, int] = (
-            Message._end_of(self.__rgb_image_byte_size_segment), struct.calcsize(self.__image_size_fmt)
+        self.__image_sizes_segment: Tuple[int, int] = (
+            Message._end_of(self.__image_byte_sizes_segment), struct.calcsize(self.__image_sizes_fmt)
         )
 
-        self._data = np.zeros(Message._end_of(self.__rgb_image_size_segment), dtype=np.uint8)
+        self._data = np.zeros(Message._end_of(self.__image_sizes_segment), dtype=np.uint8)
 
     # PUBLIC METHODS
 
-    def extract_depth_image_byte_size(self) -> int:
-        """TODO"""
-        return struct.unpack_from(
-            self.__image_byte_size_fmt, self._data, self.__depth_image_byte_size_segment[0]
-        )[0]
-
-    def extract_depth_image_size(self) -> Tuple[int, int]:
-        """TODO"""
-        return struct.unpack_from(self.__image_size_fmt, self._data, self.__depth_image_size_segment[0])
-
-    def extract_rgb_image_byte_size(self) -> int:
-        """TODO"""
-        return struct.unpack_from(
-            self.__image_byte_size_fmt, self._data, self.__rgb_image_byte_size_segment[0]
-        )[0]
-
-    def extract_rgb_image_size(self) -> Tuple[int, int]:
-        """TODO"""
-        return struct.unpack_from(self.__image_size_fmt, self._data, self.__rgb_image_size_segment[0])
-
-    def set_depth_image_byte_size(self, depth_image_byte_size: int) -> None:
+    def extract_image_byte_sizes(self) -> List[int]:
         """
-        Set the size (in bytes) of the depth image.
+        TODO
 
-        :param depth_image_byte_size:   The size (in bytes) of the depth image.
+        :return:    TODO
+        """
+        return list(struct.unpack_from(self.__image_byte_sizes_fmt, self._data, self.__image_byte_sizes_segment[0]))
+
+    def extract_image_sizes(self) -> List[Tuple[int, int]]:
+        """
+        TODO
+
+        :return:    TODO
+        """
+        flat: List[int] = struct.unpack_from(
+            self.__image_sizes_fmt, self._data, self.__image_sizes_segment[0]
+        )
+        return list(zip(flat[::2], flat[1::2]))
+
+    def set_image_byte_size(self, image_idx: int, image_byte_size: int) -> None:
+        """
+        TODO
+
+        :param image_idx:       TODO
+        :param image_byte_size: TODO
         """
         struct.pack_into(
-            self.__image_byte_size_fmt, self._data, self.__depth_image_byte_size_segment[0], depth_image_byte_size
+            self.__image_byte_size_fmt, self._data,
+            self.__image_byte_sizes_segment[0] + image_idx * struct.calcsize(self.__image_byte_size_fmt),
+            image_byte_size
         )
 
-    def set_depth_image_size(self, depth_image_size: Tuple[int, int]) -> None:
+    def set_image_size(self, image_idx: int, image_size: Tuple[int, int]) -> None:
         """
-        Set the dimensions of the depth image.
+        TODO
 
-        :param depth_image_size:    The dimensions of the depth image.
-        """
-        struct.pack_into(self.__image_size_fmt, self._data, self.__depth_image_size_segment[0], *depth_image_size)
-
-    def set_rgb_image_byte_size(self, rgb_image_byte_size: int) -> None:
-        """
-        Set the size (in bytes) of the RGB image.
-
-        :param rgb_image_byte_size: The size (in bytes of the RGB image).
+        :param image_idx:   TODO
+        :param image_size:  TODO
         """
         struct.pack_into(
-            self.__image_byte_size_fmt, self._data, self.__rgb_image_byte_size_segment[0], rgb_image_byte_size
+            self.__image_size_fmt, self._data,
+            self.__image_sizes_segment[0] + image_idx * struct.calcsize(self.__image_size_fmt),
+            *image_size
         )
-
-    def set_rgb_image_size(self, rgb_image_size: Tuple[int, int]) -> None:
-        """
-        Set the dimensions of the RGB image.
-
-        :param rgb_image_size:  The dimensions of the RGB image.
-        """
-        struct.pack_into(self.__image_size_fmt, self._data, self.__rgb_image_size_segment[0], *rgb_image_size)
