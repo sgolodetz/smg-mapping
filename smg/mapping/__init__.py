@@ -10,6 +10,9 @@ from .ack_message import AckMessage
 
 from .socket_util import SocketUtil
 
+from .rgbd_frame_decoders import UncompressedRGBDFrameDecoder
+from .rgbd_frame_util import RGBDFrameUtil
+
 from .client import Client
 from .client_handler import ClientHandler
 from .server import Server

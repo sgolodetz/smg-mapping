@@ -1,12 +1,10 @@
 import cv2
-import numpy as np
 import struct
 
 from typing import cast, Optional
 
 from smg.openni import OpenNICamera
-from smg.mapping import CalibrationMessage, Client, FrameMessage
-from smg.utility import ImageUtil
+from smg.mapping import CalibrationMessage, Client, FrameMessage, RGBDFrameUtil
 
 
 def main() -> None:
@@ -32,9 +30,7 @@ def main() -> None:
                         elt: Optional[FrameMessage] = push_handler.get()
                         if elt:
                             msg: FrameMessage = cast(FrameMessage, elt)
-                            msg.set_frame_index(frame_idx)
-                            msg.set_image_data(0, rgb_image.reshape(-1))
-                            msg.set_image_data(1, ImageUtil.to_short_depth(depth_image).reshape(-1).view(np.uint8))
+                            RGBDFrameUtil.encode_frame_uncompressed(frame_idx, rgb_image, depth_image, msg)
 
                     frame_idx += 1
 
