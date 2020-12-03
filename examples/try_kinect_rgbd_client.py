@@ -5,6 +5,7 @@ import time
 from typing import cast, Optional, Tuple
 
 from smg.mapping import CalibrationMessage, Client, FrameMessage
+from smg.utility import ImageUtil
 
 
 def main() -> None:
@@ -19,14 +20,14 @@ def main() -> None:
             client.send_calibration_message(calib_msg)
 
             rgb_image: np.ndarray = cv2.imread("C:/smglib/smg-mapping/output-kinect/frame-000000.color.png")
-            depth_image: np.ndarray = np.zeros(image_size, dtype=np.float32)
+            depth_image: np.ndarray = ImageUtil.load_depth_image("C:/smglib/smg-mapping/output-kinect/frame-000000.depth.png").astype(np.float32)
             with client.begin_push_frame_message() as push_handler:
                 elt: Optional[FrameMessage] = push_handler.get()
                 if elt:
                     msg: FrameMessage = cast(FrameMessage, elt)
                     msg.set_frame_index(23)
                     msg.set_image_data(0, rgb_image.reshape(-1))
-                    # TODO
+                    msg.set_image_data(1, depth_image.reshape(-1).view(np.uint8))
 
             time.sleep(1)
     except RuntimeError as e:

@@ -84,6 +84,7 @@ class ClientHandler:
 
                 # TEMPORARY
                 rgb_image: np.ndarray = frame_msg.get_image_data(0).reshape(frame_msg.get_image_shapes()[0])
+                depth_image: np.ndarray = frame_msg.get_image_data(1).view(np.float32).reshape(frame_msg.get_image_shapes()[1][:2])
                 cv2.imshow("Received Image", rgb_image)
                 cv2.waitKey()
 
