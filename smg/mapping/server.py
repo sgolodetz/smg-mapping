@@ -3,7 +3,7 @@ from __future__ import annotations
 import socket
 import threading
 
-from typing import Dict
+from typing import Dict, Optional, Set
 
 from smg.mapping import ClientHandler
 
@@ -20,6 +20,7 @@ class Server:
         :param port:    TODO
         """
         self.__client_handlers: Dict[int, ClientHandler] = {}
+        self.__finished_clients: Set[int] = set()
         self.__next_client_id: int = 0
         self.__port: int = port
         self.__server_thread: threading.Thread = threading.Thread(target=self.__run_server)
@@ -28,9 +29,30 @@ class Server:
         self.__lock: threading.Lock = threading.Lock()
         self.__client_ready: threading.Condition = threading.Condition(self.__lock)
 
+    # PUBLIC METHODS
+
     def start(self):
         """Start the server."""
         self.__server_thread.start()
+
+    # PROTECTED METHODS
+
+    def _get_client_handler(self, client_id: int) -> Optional[ClientHandler]:
+        """
+        Try to get the handler of the active client with the specified ID.
+
+        .. note::
+            If the client has not yet started, this will block.
+
+        :param client_id:   The ID of the client whose handler we want to get.
+        :return:            The client handler, if the client is active, or None if it has finished.
+        """
+        with self.__lock:
+            # Wait until the client is either active or has terminated.
+            while self.__client_handlers.get(client_id) is None and client_id not in self.__finished_clients:
+                self.__client_ready.wait(0.1)
+
+            return self.__client_handlers.get(client_id)
 
     # PRIVATE METHODS
 
@@ -66,6 +88,7 @@ class Server:
         # Once the client's finished, add it to the finished clients set so that it can be cleaned up.
         with self.__lock:
             print(f"Stopping client: {client_id}")
+            self.__finished_clients.add(client_id)
             # TODO
 
     def __run_server(self) -> None:
