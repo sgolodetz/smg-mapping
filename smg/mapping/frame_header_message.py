@@ -18,8 +18,8 @@ class FrameHeaderMessage(Message):
         max_images: int = 2
         self.__image_byte_size_fmt: str = "<i"
         self.__image_byte_sizes_fmt: str = "<" + "i" * max_images
-        self.__image_size_fmt: str = "<ii"
-        self.__image_sizes_fmt: str = "<" + "ii" * max_images
+        self.__image_size_fmt: str = "<iii"
+        self.__image_sizes_fmt: str = "<" + "iii" * max_images
 
         self.__image_byte_sizes_segment: Tuple[int, int] = (
             0, struct.calcsize(self.__image_byte_sizes_fmt)
@@ -40,7 +40,7 @@ class FrameHeaderMessage(Message):
         """
         return list(struct.unpack_from(self.__image_byte_sizes_fmt, self._data, self.__image_byte_sizes_segment[0]))
 
-    def extract_image_sizes(self) -> List[Tuple[int, int]]:
+    def extract_image_sizes(self) -> List[Tuple[int, int, int]]:
         """
         TODO
 
@@ -49,7 +49,7 @@ class FrameHeaderMessage(Message):
         flat: List[int] = struct.unpack_from(
             self.__image_sizes_fmt, self._data, self.__image_sizes_segment[0]
         )
-        return list(zip(flat[::2], flat[1::2]))
+        return list(zip(flat[::3], flat[1::3], flat[2::3]))
 
     def set_image_byte_size(self, image_idx: int, image_byte_size: int) -> None:
         """
@@ -64,7 +64,7 @@ class FrameHeaderMessage(Message):
             image_byte_size
         )
 
-    def set_image_size(self, image_idx: int, image_size: Tuple[int, int]) -> None:
+    def set_image_size(self, image_idx: int, image_size: Tuple[int, int, int]) -> None:
         """
         TODO
 

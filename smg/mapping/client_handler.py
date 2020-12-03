@@ -82,7 +82,7 @@ class ClientHandler:
                 self.__connection_ok = SocketUtil.write_message(self.__sock, AckMessage())
 
                 # TEMPORARY
-                rgb_image: np.ndarray = frame_msg.get_rgb_image_data().reshape((*frame_msg.get_rgb_image_size(), 3))
+                rgb_image: np.ndarray = frame_msg.get_rgb_image_data().reshape(*frame_msg.get_rgb_image_size())
                 cv2.imshow("Received Image", rgb_image)
                 cv2.waitKey()
 
@@ -112,7 +112,9 @@ class ClientHandler:
             # Initialise the frame message queue.
             capacity: int = 5
             image_size: Tuple[int, int] = calib_msg.extract_image_size()
-            self.__frame_message_queue.initialise(capacity, lambda: FrameMessage(image_size, image_size))
+            rgb_image_size: Tuple[int, int, int] = (image_size[0], image_size[1], 3)
+            depth_image_size: Tuple[int, int, int] = (image_size[0], image_size[1], 1)
+            self.__frame_message_queue.initialise(capacity, lambda: FrameMessage(rgb_image_size, depth_image_size))
 
             # Set up the frame compressor.
             # TODO

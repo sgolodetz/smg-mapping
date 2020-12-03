@@ -11,7 +11,7 @@ class FrameMessage(Message):
 
     # CONSTRUCTOR
 
-    def __init__(self, rgb_image_size: Tuple[int, int], depth_image_size: Tuple[int, int],
+    def __init__(self, rgb_image_size: Tuple[int, int, int], depth_image_size: Tuple[int, int, int],
                  rgb_image_byte_size: Optional[int] = None, depth_image_byte_size: Optional[int] = None):
         """
         Construct an RGB-D frame message.
@@ -29,14 +29,14 @@ class FrameMessage(Message):
         super().__init__()
 
         if rgb_image_byte_size is None:
-            rgb_image_byte_size = rgb_image_size[0] * rgb_image_size[1] * struct.calcsize("<BBB")
+            rgb_image_byte_size = rgb_image_size[0] * rgb_image_size[1] * rgb_image_size[2] * struct.calcsize("<B")
         if depth_image_byte_size is None:
             depth_image_byte_size = depth_image_size[0] * depth_image_size[1] * struct.calcsize("<H")
 
         self.__depth_image_byte_size: int = depth_image_byte_size
-        self.__depth_image_size: Tuple[int, int] = depth_image_size
+        self.__depth_image_size: Tuple[int, int, int] = depth_image_size
         self.__rgb_image_byte_size: int = rgb_image_byte_size
-        self.__rgb_image_size: Tuple[int, int] = rgb_image_size
+        self.__rgb_image_size: Tuple[int, int, int] = rgb_image_size
 
         self.__frame_index_fmt: str = "<i"
         self.__pose_fmt: str = "<ffffffffffff"
@@ -62,7 +62,7 @@ class FrameMessage(Message):
         """TODO"""
         return self.__depth_image_byte_size
 
-    def get_depth_image_size(self) -> Tuple[int, int]:
+    def get_depth_image_size(self) -> Tuple[int, int, int]:
         """
         Get the dimensions of the frame's depth image.
 
@@ -78,7 +78,7 @@ class FrameMessage(Message):
         """TODO"""
         return self._data_for(self.__rgb_image_segment)
 
-    def get_rgb_image_size(self) -> Tuple[int, int]:
+    def get_rgb_image_size(self) -> Tuple[int, int, int]:
         """
         Get the dimensions of the frame's RGB image.
 
