@@ -84,7 +84,7 @@ class ClientHandler:
 
                 # TEMPORARY
                 rgb_image: np.ndarray = frame_msg.get_image_data(0).reshape(frame_msg.get_image_shapes()[0])
-                depth_image: np.ndarray = frame_msg.get_image_data(1).view(np.float32).reshape(frame_msg.get_image_shapes()[1][:2])
+                depth_image: np.ndarray = frame_msg.get_image_data(1).view(np.uint16).reshape(frame_msg.get_image_shapes()[1][:2])
                 cv2.imshow("Received Image", rgb_image)
                 cv2.waitKey()
 
@@ -117,7 +117,7 @@ class ClientHandler:
             rgb_image_shape: Tuple[int, int, int] = (image_size[0], image_size[1], 3)
             depth_image_shape: Tuple[int, int, int] = (image_size[0], image_size[1], 1)
             rgb_image_byte_size: int = rgb_image_shape[0] * rgb_image_shape[1] * rgb_image_shape[2] * struct.calcsize("<B")
-            depth_image_byte_size: int = depth_image_shape[0] * depth_image_shape[1] * depth_image_shape[2] * struct.calcsize("<f")
+            depth_image_byte_size: int = depth_image_shape[0] * depth_image_shape[1] * depth_image_shape[2] * struct.calcsize("<H")
             self.__frame_message_queue.initialise(capacity, lambda: FrameMessage(
                 [rgb_image_shape, depth_image_shape], [rgb_image_byte_size, depth_image_byte_size]
             ))

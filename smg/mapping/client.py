@@ -84,7 +84,7 @@ class Client:
         rgb_image_shape: Tuple[int, int, int] = (image_size[0], image_size[1], 3)
         depth_image_shape: Tuple[int, int, int] = (image_size[0], image_size[1], 1)
         rgb_image_byte_size: int = rgb_image_shape[0] * rgb_image_shape[1] * rgb_image_shape[2] * struct.calcsize("<B")
-        depth_image_byte_size: int = depth_image_shape[0] * depth_image_shape[1] * depth_image_shape[2] * struct.calcsize("<f")
+        depth_image_byte_size: int = depth_image_shape[0] * depth_image_shape[1] * depth_image_shape[2] * struct.calcsize("<H")
         self.__frame_message_queue.initialise(capacity, lambda: FrameMessage(
             [rgb_image_shape, depth_image_shape], [rgb_image_byte_size, depth_image_byte_size]
         ))

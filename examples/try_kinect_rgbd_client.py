@@ -20,7 +20,9 @@ def main() -> None:
             client.send_calibration_message(calib_msg)
 
             rgb_image: np.ndarray = cv2.imread("C:/smglib/smg-mapping/output-kinect/frame-000000.color.png")
-            depth_image: np.ndarray = ImageUtil.load_depth_image("C:/smglib/smg-mapping/output-kinect/frame-000000.depth.png").astype(np.float32)
+            depth_image: np.ndarray = ImageUtil.to_short_depth(
+                ImageUtil.load_depth_image("C:/smglib/smg-mapping/output-kinect/frame-000000.depth.png")
+            )
             with client.begin_push_frame_message() as push_handler:
                 elt: Optional[FrameMessage] = push_handler.get()
                 if elt:
