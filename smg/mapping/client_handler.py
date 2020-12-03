@@ -30,6 +30,7 @@ class ClientHandler:
         :param sock:                The socket used to communicate with the client.
         :param should_terminate:    Whether or not the server should terminate (read-only, set within the server).
         """
+        self.__calib_msg: Optional[CalibrationMessage] = None
         self.__client_id: int = client_id
         self.__connection_ok: bool = True
         self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage](PooledQueue.PES_DISCARD)
@@ -60,10 +61,9 @@ class ClientHandler:
     def run_iter(self) -> None:
         """Run an iteration of the main loop for the client."""
         # Try to read a frame header message.
-        header_msg: FrameHeaderMessage = FrameHeaderMessage()
+        header_msg: FrameHeaderMessage = FrameHeaderMessage(self.__calib_msg.get_max_images())
         self.__connection_ok = SocketUtil.read_message(self.__sock, header_msg)
         if self.__connection_ok:
-            print("Received header message")
             # If that succeeds, set up a frame message accordingly.
             image_shapes: List[Tuple[int, int, int]] = header_msg.extract_image_shapes()
             image_byte_sizes: List[int] = header_msg.extract_image_byte_sizes()
@@ -72,7 +72,6 @@ class ClientHandler:
             # Now, read the frame message itself.
             self.__connection_ok = SocketUtil.read_message(self.__sock, frame_msg)
             if self.__connection_ok:
-                print("Received frame message")
                 # TODO: Uncompression, eventually.
                 with self.__frame_message_queue.begin_push() as push_handler:
                     elt: Optional[FrameMessage] = push_handler.get()
@@ -97,14 +96,14 @@ class ClientHandler:
     def run_pre(self) -> None:
         """Run any code that should happen before the main loop for the client."""
         # Read a calibration message from the client to get its camera intrinsics.
-        calib_msg: CalibrationMessage = CalibrationMessage()
-        self.__connection_ok = SocketUtil.read_message(self.__sock, calib_msg)
+        self.__calib_msg = CalibrationMessage()
+        self.__connection_ok = SocketUtil.read_message(self.__sock, self.__calib_msg)
 
         # If the calibration message was successfully read:
         if self.__connection_ok:
             # Save the camera parameters.
-            self.__image_shapes = calib_msg.extract_image_shapes()
-            self.__intrinsics = calib_msg.extract_intrinsics()
+            self.__image_shapes = self.__calib_msg.extract_image_shapes()
+            self.__intrinsics = self.__calib_msg.extract_intrinsics()
 
             # Print the camera parameters out for debugging purposes.
             print(
@@ -114,7 +113,7 @@ class ClientHandler:
             # Initialise the frame message queue.
             capacity: int = 5
             self.__frame_message_queue.initialise(capacity, lambda: FrameMessage(
-                calib_msg.extract_image_shapes(), calib_msg.extract_image_byte_sizes()
+                self.__calib_msg.extract_image_shapes(), self.__calib_msg.extract_image_byte_sizes()
             ))
 
             # Set up the frame compressor.

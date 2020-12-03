@@ -12,11 +12,10 @@ class FrameHeaderMessage(Message):
 
     # CONSTRUCTOR
 
-    def __init__(self):
+    def __init__(self, max_images: int):
         """Construct a frame header message."""
         super().__init__()
 
-        max_images: int = 2
         self.__image_byte_sizes_fmt: str = "<" + "i" * max_images
         self.__image_shapes_fmt: str = "<" + "iii" * max_images
 

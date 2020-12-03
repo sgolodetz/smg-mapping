@@ -12,13 +12,15 @@ class CalibrationMessage(Message):
 
     # CONSTRUCTOR
 
-    def __init__(self, *, num_images: int = 2):
+    def __init__(self):
         """Construct a calibration message."""
         super().__init__()
 
-        self.__image_byte_sizes_fmt: str = "<" + "i" * num_images
-        self.__image_shapes_fmt: str = "<" + "iii" * num_images
-        self.__intrinsics_fmt: str = "<" + "ffff" * num_images
+        self.__max_images = 2
+
+        self.__image_byte_sizes_fmt: str = "<" + "i" * self.__max_images
+        self.__image_shapes_fmt: str = "<" + "iii" * self.__max_images
+        self.__intrinsics_fmt: str = "<" + "ffff" * self.__max_images
 
         self.__image_byte_sizes_segment: Tuple[int, int] = (
             0, struct.calcsize(self.__image_byte_sizes_fmt)
@@ -64,12 +66,21 @@ class CalibrationMessage(Message):
         )
         return list(zip(flat[::4], flat[1::4], flat[2::4], flat[3::4]))
 
+    def get_max_images(self) -> int:
+        """
+        TODO
+
+        :return:    TODO
+        """
+        return self.__max_images
+
     def set_image_byte_sizes(self, image_byte_sizes: List[int]) -> None:
         """
         TODO
 
         :param image_byte_sizes:    TODO
         """
+        image_byte_sizes += [0] * (self.__max_images - len(image_byte_sizes))
         struct.pack_into(
             self.__image_byte_sizes_fmt, self._data, self.__image_byte_sizes_segment[0], *image_byte_sizes
         )
@@ -80,6 +91,7 @@ class CalibrationMessage(Message):
 
         :param image_shapes:    The image shapes.
         """
+        image_shapes += [(0, 0, 0)] * (self.__max_images - len(image_shapes))
         struct.pack_into(
             self.__image_shapes_fmt, self._data, self.__image_shapes_segment[0], *chain(*image_shapes)
         )
@@ -90,6 +102,7 @@ class CalibrationMessage(Message):
 
         :param intrinsics:  The camera intrinsics.
         """
+        intrinsics += [(0, 0, 0, 0)] * (self.__max_images - len(intrinsics))
         struct.pack_into(
             self.__intrinsics_fmt, self._data, self.__intrinsics_segment[0], *chain(*intrinsics)
         )

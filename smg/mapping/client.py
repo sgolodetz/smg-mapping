@@ -21,6 +21,7 @@ class Client:
         :param timeout:     The socket timeout to use (in seconds).
         """
         self.__alive: bool = False
+        self.__calib_msg: Optional[CalibrationMessage] = None
         self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage](PooledQueue.PES_DISCARD)
         self.__message_sender_thread: Optional[threading.Thread] = None
         self.__should_terminate: threading.Event = threading.Event()
@@ -74,8 +75,10 @@ class Client:
         ack_msg: AckMessage = AckMessage()
         connection_ok = connection_ok and SocketUtil.read_message(self.__sock, ack_msg)
 
-        # Throw if the message was not successfully sent and acknowledged.
-        if not connection_ok:
+        # If the meessage was successfully sent and acknowledged, save it, else throw.
+        if connection_ok:
+            self.__calib_msg = calib_msg
+        else:
             raise RuntimeError("Error: Failed to send calibration message")
 
         # Initialise the frame message queue.
@@ -119,7 +122,7 @@ class Client:
 
             # Make the frame header message.
             # TODO: Ultimately, we'll do some compression here, but this will do for now.
-            header_msg: FrameHeaderMessage = FrameHeaderMessage()
+            header_msg: FrameHeaderMessage = FrameHeaderMessage(self.__calib_msg.get_max_images())
             header_msg.set_image_byte_sizes(frame_msg.get_image_byte_sizes())
             header_msg.set_image_shapes(frame_msg.get_image_shapes())
 
