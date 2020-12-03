@@ -5,7 +5,7 @@ from typing import Optional
 from smg.mapping import FrameMessage
 
 
-class UncompressedRGBDFrameDecoder:
+class RGBDFrameReceiver:
     """TODO"""
 
     # CONSTRUCTOR

@@ -1,8 +1,7 @@
 import socket
-import struct
 import threading
 
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 from smg.mapping import AckMessage, CalibrationMessage, FrameHeaderMessage, FrameMessage, SocketUtil
 from smg.utility import PooledQueue
@@ -13,15 +12,18 @@ class Client:
 
     # CONSTRUCTOR
 
-    def __init__(self, endpoint: Tuple[str, int] = ("127.0.0.1", 7851), *, timeout: int = 10):
+    def __init__(self, endpoint: Tuple[str, int] = ("127.0.0.1", 7851), *, timeout: int = 10,
+                 frame_encoder: Optional[Callable[[FrameMessage], FrameMessage]] = None):
         """
         Construct a client.
 
-        :param endpoint:    The server host and port, e.g. ("127.0.0.1", 7851).
-        :param timeout:     The socket timeout to use (in seconds).
+        :param endpoint:        The server host and port, e.g. ("127.0.0.1", 7851).
+        :param timeout:         The socket timeout to use (in seconds).
+        :param frame_encoder:   An optional function to use to encode frames prior to transmission.
         """
         self.__alive: bool = False
         self.__calib_msg: Optional[CalibrationMessage] = None
+        self.__frame_encoder: Optional[Callable[[FrameMessage], FrameMessage]] = frame_encoder
         self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage](PooledQueue.PES_DISCARD)
         self.__message_sender_thread: Optional[threading.Thread] = None
         self.__should_terminate: threading.Event = threading.Event()
@@ -120,17 +122,21 @@ class Client:
             if self.__should_terminate.is_set():
                 break
 
+            # If requested, encode the frame prior to transmission.
+            encoded_frame_msg: FrameMessage = frame_msg
+            if self.__frame_encoder is not None:
+                encoded_frame_msg = self.__frame_encoder(frame_msg)
+
             # Make the frame header message.
-            # TODO: Ultimately, we'll do some compression here, but this will do for now.
             header_msg: FrameHeaderMessage = FrameHeaderMessage(self.__calib_msg.get_max_images())
-            header_msg.set_image_byte_sizes(frame_msg.get_image_byte_sizes())
-            header_msg.set_image_shapes(frame_msg.get_image_shapes())
+            header_msg.set_image_byte_sizes(encoded_frame_msg.get_image_byte_sizes())
+            header_msg.set_image_shapes(encoded_frame_msg.get_image_shapes())
 
             # First send the frame header message, then send the frame message, then wait for an acknowledgement
             # from the server. We chain all of these with 'and' so as to early out in case of failure.
             connection_ok = connection_ok and \
                 SocketUtil.write_message(self.__sock, header_msg) and \
-                SocketUtil.write_message(self.__sock, frame_msg) and \
+                SocketUtil.write_message(self.__sock, encoded_frame_msg) and \
                 SocketUtil.read_message(self.__sock, ack_msg)
 
             # Remove the frame message that we have just sent from the queue.

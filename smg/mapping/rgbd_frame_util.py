@@ -10,8 +10,23 @@ class RGBDFrameUtil:
     # PUBLIC STATIC METHODS
 
     @staticmethod
-    def encode_frame_uncompressed(frame_idx: int, rgb_image: np.ndarray, depth_image: np.ndarray,
-                                  msg: FrameMessage) -> None:
+    def compress_frame_message(msg: FrameMessage) -> FrameMessage:
+        """
+        TODO
+
+        :param msg: TODO
+        :return:    TODO
+        """
+        # TODO
+        return msg
+
+    @staticmethod
+    def decompress_frame_message(msg: FrameMessage) -> FrameMessage:
+        # TODO
+        return msg
+
+    @staticmethod
+    def fill_frame_message(frame_idx: int, rgb_image: np.ndarray, depth_image: np.ndarray, msg: FrameMessage) -> None:
         """
         TODO
 

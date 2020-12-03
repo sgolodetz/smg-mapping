@@ -10,7 +10,7 @@ from .ack_message import AckMessage
 
 from .socket_util import SocketUtil
 
-from .rgbd_frame_decoders import UncompressedRGBDFrameDecoder
+from .rgbd_frame_receiver import RGBDFrameReceiver
 from .rgbd_frame_util import RGBDFrameUtil
 
 from .client import Client

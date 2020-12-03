@@ -30,7 +30,7 @@ def main() -> None:
                         elt: Optional[FrameMessage] = push_handler.get()
                         if elt:
                             msg: FrameMessage = cast(FrameMessage, elt)
-                            RGBDFrameUtil.encode_frame_uncompressed(frame_idx, rgb_image, depth_image, msg)
+                            RGBDFrameUtil.fill_frame_message(frame_idx, rgb_image, depth_image, msg)
 
                     frame_idx += 1
 
