@@ -1,4 +1,5 @@
 import socket
+import struct
 import threading
 
 from typing import Optional, Tuple
@@ -80,9 +81,13 @@ class Client:
         # Initialise the frame message queue.
         capacity: int = 1
         image_size: Tuple[int, int] = calib_msg.extract_image_size()
-        rgb_image_size: Tuple[int, int, int] = (image_size[0], image_size[1], 3)
-        depth_image_size: Tuple[int, int, int] = (image_size[0], image_size[1], 1)
-        self.__frame_message_queue.initialise(capacity, lambda: FrameMessage(rgb_image_size, depth_image_size))
+        rgb_image_shape: Tuple[int, int, int] = (image_size[0], image_size[1], 3)
+        depth_image_shape: Tuple[int, int, int] = (image_size[0], image_size[1], 1)
+        rgb_image_byte_size: int = rgb_image_shape[0] * rgb_image_shape[1] * rgb_image_shape[2] * struct.calcsize("<B")
+        depth_image_byte_size: int = depth_image_shape[0] * depth_image_shape[1] * depth_image_shape[2] * struct.calcsize("<f")
+        self.__frame_message_queue.initialise(capacity, lambda: FrameMessage(
+            [rgb_image_shape, depth_image_shape], [rgb_image_byte_size, depth_image_byte_size]
+        ))
 
         # Set up the frame compressor.
         # TODO
@@ -120,10 +125,8 @@ class Client:
             # Make the frame header message.
             # TODO: Ultimately, we'll do some compression here, but this will do for now.
             header_msg: FrameHeaderMessage = FrameHeaderMessage()
-            header_msg.set_image_byte_size(0, frame_msg.get_rgb_image_byte_size())
-            header_msg.set_image_size(0, frame_msg.get_rgb_image_size())
-            header_msg.set_image_byte_size(1, frame_msg.get_depth_image_byte_size())
-            header_msg.set_image_size(1, frame_msg.get_depth_image_size())
+            header_msg.set_image_byte_sizes(frame_msg.get_image_byte_sizes())
+            header_msg.set_image_shapes(frame_msg.get_image_shapes())
 
             # First send the frame header message, then send the frame message, then wait for an acknowledgement
             # from the server. We chain all of these with 'and' so as to early out in case of failure.

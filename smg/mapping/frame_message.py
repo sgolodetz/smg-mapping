@@ -1,42 +1,27 @@
 import numpy as np
 import struct
 
-from typing import Optional, Tuple
+from typing import List, Tuple
 
 from smg.mapping import Message
 
 
 class FrameMessage(Message):
-    """A message containing a single frame of RGB-D data (frame index + pose + RGB-D)."""
+    """A message containing a single frame of data (frame index + pose + images)."""
 
     # CONSTRUCTOR
 
-    def __init__(self, rgb_image_size: Tuple[int, int, int], depth_image_size: Tuple[int, int, int],
-                 rgb_image_byte_size: Optional[int] = None, depth_image_byte_size: Optional[int] = None):
+    def __init__(self, image_shapes: List[Tuple[int, int, int]], image_byte_sizes: List[int]):
         """
-        Construct an RGB-D frame message.
+        TODO
 
-        .. note::
-            The images may be compressed, so we allow the byte sizes of the images to be passed in independently
-            of their dimensions. If separate byte sizes are not specified, it will be assumed that the images are
-            not compressed, and the bytes sizes will be inferred from the images' dimensions in the obvious way.
-
-        :param rgb_image_size:          The dimensions of the frame's RGB image, as a (height, width) tuple.
-        :param depth_image_size:        The dimensions of the frame's depth image, as a (height, width) tuple.
-        :param rgb_image_byte_size:     The size (in bytes) of the memory used to store the frame's RGB image.
-        :param depth_image_byte_size:   The size (in bytes) of the memory used to store the frame's depth image.
+        :param image_shapes:        TODO
+        :param image_byte_sizes:    TODO
         """
         super().__init__()
 
-        if rgb_image_byte_size is None:
-            rgb_image_byte_size = rgb_image_size[0] * rgb_image_size[1] * rgb_image_size[2] * struct.calcsize("<B")
-        if depth_image_byte_size is None:
-            depth_image_byte_size = depth_image_size[0] * depth_image_size[1] * struct.calcsize("<H")
-
-        self.__depth_image_byte_size: int = depth_image_byte_size
-        self.__depth_image_size: Tuple[int, int, int] = depth_image_size
-        self.__rgb_image_byte_size: int = rgb_image_byte_size
-        self.__rgb_image_size: Tuple[int, int, int] = rgb_image_size
+        self.__image_shapes: List[Tuple[int, int, int]] = image_shapes
+        self.__image_byte_sizes: List[int] = image_byte_sizes
 
         self.__frame_index_fmt: str = "<i"
         self.__pose_fmt: str = "<ffffffffffff"
@@ -47,44 +32,42 @@ class FrameMessage(Message):
         self.__pose_segment: Tuple[int, int] = (
             Message._end_of(self.__frame_index_segment), struct.calcsize(self.__pose_fmt)
         )
-        self.__rgb_image_segment: Tuple[int, int] = (
-            Message._end_of(self.__pose_segment), rgb_image_byte_size
-        )
-        self.__depth_image_segment: Tuple[int, int] = (
-            Message._end_of(self.__rgb_image_segment), depth_image_byte_size
+        self.__images_segment: Tuple[int, int] = (
+            Message._end_of(self.__pose_segment), sum(self.__image_byte_sizes)
         )
 
-        self._data = np.zeros(Message._end_of(self.__depth_image_segment), dtype=np.uint8)
+        self._data = np.zeros(Message._end_of(self.__images_segment), dtype=np.uint8)
 
     # PUBLIC METHODS
 
-    def get_depth_image_byte_size(self) -> int:
-        """TODO"""
-        return self.__depth_image_byte_size
-
-    def get_depth_image_size(self) -> Tuple[int, int, int]:
+    def get_image_byte_sizes(self) -> List[int]:
         """
-        Get the dimensions of the frame's depth image.
+        TODO
 
-        :return:    The dimensions of the frame's depth image.
+        :return:    TODO
         """
-        return self.__depth_image_size
+        return self.__image_byte_sizes
 
-    def get_rgb_image_byte_size(self) -> int:
-        """TODO"""
-        return self.__rgb_image_byte_size
-
-    def get_rgb_image_data(self) -> np.ndarray:
-        """TODO"""
-        return self._data_for(self.__rgb_image_segment)
-
-    def get_rgb_image_size(self) -> Tuple[int, int, int]:
+    def get_image_data(self, image_idx: int) -> np.ndarray:
         """
-        Get the dimensions of the frame's RGB image.
+        TODO
 
-        :return:    The dimensions of the frame's RGB image.
+        :param image_idx:   TODO
+        :return:            TODO
         """
-        return self.__rgb_image_size
+        start: int = self.__images_segment[0]
+        for i in range(image_idx):
+            start += self.__image_byte_sizes[i]
+        end: int = start + self.__image_byte_sizes[image_idx]
+        return self._data[start:end]
+
+    def get_image_shapes(self) -> List[Tuple[int, int, int]]:
+        """
+        TODO
+
+        :return:    TODO
+        """
+        return self.__image_shapes
 
     def set_frame_index(self, frame_index: int) -> None:
         """
@@ -94,6 +77,11 @@ class FrameMessage(Message):
         """
         struct.pack_into(self.__frame_index_fmt, self._data, self.__frame_index_segment[0], frame_index)
 
-    def set_rgb_image_data(self, rgb_image_data: np.ndarray) -> None:
-        """TODO"""
-        np.copyto(self._data_for(self.__rgb_image_segment), rgb_image_data)
+    def set_image_data(self, image_idx: int, image_data: np.ndarray) -> None:
+        """
+        TODO
+
+        :param image_idx:   TODO
+        :param image_data:  TODO
+        """
+        np.copyto(self.get_image_data(image_idx), image_data)

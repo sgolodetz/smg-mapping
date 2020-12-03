@@ -25,7 +25,7 @@ def main() -> None:
                 if elt:
                     msg: FrameMessage = cast(FrameMessage, elt)
                     msg.set_frame_index(23)
-                    msg.set_rgb_image_data(rgb_image.reshape(-1))
+                    msg.set_image_data(0, rgb_image.reshape(-1))
                     # TODO
 
             time.sleep(1)

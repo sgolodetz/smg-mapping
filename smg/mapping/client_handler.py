@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import socket
+import struct
 import threading
 
 from typing import cast, List, Optional, Tuple, TypeVar
@@ -64,9 +65,9 @@ class ClientHandler:
         if self.__connection_ok:
             print("Received header message")
             # If that succeeds, set up a frame message accordingly.
-            image_sizes: List[Tuple[int, int]] = header_msg.extract_image_sizes()
+            image_shapes: List[Tuple[int, int, int]] = header_msg.extract_image_shapes()
             image_byte_sizes: List[int] = header_msg.extract_image_byte_sizes()
-            frame_msg: FrameMessage = FrameMessage(*image_sizes[:2], *image_byte_sizes[:2])
+            frame_msg: FrameMessage = FrameMessage(image_shapes, image_byte_sizes)
 
             # Now, read the frame message itself.
             self.__connection_ok = SocketUtil.read_message(self.__sock, frame_msg)
@@ -82,7 +83,7 @@ class ClientHandler:
                 self.__connection_ok = SocketUtil.write_message(self.__sock, AckMessage())
 
                 # TEMPORARY
-                rgb_image: np.ndarray = frame_msg.get_rgb_image_data().reshape(*frame_msg.get_rgb_image_size())
+                rgb_image: np.ndarray = frame_msg.get_image_data(0).reshape(frame_msg.get_image_shapes()[0])
                 cv2.imshow("Received Image", rgb_image)
                 cv2.waitKey()
 
@@ -112,9 +113,13 @@ class ClientHandler:
             # Initialise the frame message queue.
             capacity: int = 5
             image_size: Tuple[int, int] = calib_msg.extract_image_size()
-            rgb_image_size: Tuple[int, int, int] = (image_size[0], image_size[1], 3)
-            depth_image_size: Tuple[int, int, int] = (image_size[0], image_size[1], 1)
-            self.__frame_message_queue.initialise(capacity, lambda: FrameMessage(rgb_image_size, depth_image_size))
+            rgb_image_shape: Tuple[int, int, int] = (image_size[0], image_size[1], 3)
+            depth_image_shape: Tuple[int, int, int] = (image_size[0], image_size[1], 1)
+            rgb_image_byte_size: int = rgb_image_shape[0] * rgb_image_shape[1] * rgb_image_shape[2] * struct.calcsize("<B")
+            depth_image_byte_size: int = depth_image_shape[0] * depth_image_shape[1] * depth_image_shape[2] * struct.calcsize("<f")
+            self.__frame_message_queue.initialise(capacity, lambda: FrameMessage(
+                [rgb_image_shape, depth_image_shape], [rgb_image_byte_size, depth_image_byte_size]
+            ))
 
             # Set up the frame compressor.
             # TODO
