@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import struct
 import time
 
 from typing import cast, Optional, Tuple
@@ -12,11 +13,14 @@ def main() -> None:
     try:
         with Client() as client:
             calib_msg: CalibrationMessage = CalibrationMessage()
-            image_size: Tuple[int, int] = (480, 640)
             intrinsics: Tuple[float, float, float, float] = (1.0, 2.0, 3.0, 4.0)
-            calib_msg.set_image_size(image_size)
-            calib_msg.set_intrinsics(intrinsics)
-            print(calib_msg.extract_image_size(), calib_msg.extract_intrinsics())
+            calib_msg.set_image_byte_sizes([
+                480 * 640 * 3 * struct.calcsize("<B"),
+                480 * 640 * struct.calcsize("<H")
+            ])
+            calib_msg.set_image_shapes([(480, 640, 3), (480, 640, 1)])
+            calib_msg.set_intrinsics([intrinsics, intrinsics])
+            print(calib_msg.extract_image_shapes(), calib_msg.extract_intrinsics())
             client.send_calibration_message(calib_msg)
 
             rgb_image: np.ndarray = cv2.imread("C:/smglib/smg-mapping/output-kinect/frame-000000.color.png")

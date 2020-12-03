@@ -33,8 +33,8 @@ class ClientHandler:
         self.__client_id: int = client_id
         self.__connection_ok: bool = True
         self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage](PooledQueue.PES_DISCARD)
-        self.__image_size: Optional[Tuple[int, int]] = None
-        self.__intrinsics: Optional[Tuple[float, float, float, float]] = None
+        self.__image_shapes: List[Tuple[int, int, int]] = []
+        self.__intrinsics: List[Tuple[float, float, float, float]] = []
         self.__should_terminate: threading.Event = should_terminate
         self.__sock: socket.SocketType = sock
         self.__thread: Optional[threading.Thread] = None
@@ -103,23 +103,18 @@ class ClientHandler:
         # If the calibration message was successfully read:
         if self.__connection_ok:
             # Save the camera parameters.
-            self.__image_size = calib_msg.extract_image_size()
+            self.__image_shapes = calib_msg.extract_image_shapes()
             self.__intrinsics = calib_msg.extract_intrinsics()
 
             # Print the camera parameters out for debugging purposes.
             print(
-                f"Received camera parameters from client {self.__client_id}: {self.__image_size}, {self.__intrinsics}"
+                f"Received camera parameters from client {self.__client_id}: {self.__image_shapes}, {self.__intrinsics}"
             )
 
             # Initialise the frame message queue.
             capacity: int = 5
-            image_size: Tuple[int, int] = calib_msg.extract_image_size()
-            rgb_image_shape: Tuple[int, int, int] = (image_size[0], image_size[1], 3)
-            depth_image_shape: Tuple[int, int, int] = (image_size[0], image_size[1], 1)
-            rgb_image_byte_size: int = rgb_image_shape[0] * rgb_image_shape[1] * rgb_image_shape[2] * struct.calcsize("<B")
-            depth_image_byte_size: int = depth_image_shape[0] * depth_image_shape[1] * depth_image_shape[2] * struct.calcsize("<H")
             self.__frame_message_queue.initialise(capacity, lambda: FrameMessage(
-                [rgb_image_shape, depth_image_shape], [rgb_image_byte_size, depth_image_byte_size]
+                calib_msg.extract_image_shapes(), calib_msg.extract_image_byte_sizes()
             ))
 
             # Set up the frame compressor.
