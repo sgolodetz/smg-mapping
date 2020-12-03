@@ -3,9 +3,9 @@ from __future__ import annotations
 import socket
 import threading
 
-from typing import Dict, Optional, Set
+from typing import Callable, Dict, Optional, Set
 
-from smg.mapping import ClientHandler
+from smg.mapping import ClientHandler, FrameMessage
 
 
 class Server:
@@ -30,6 +30,24 @@ class Server:
         self.__client_ready: threading.Condition = threading.Condition(self.__lock)
 
     # PUBLIC METHODS
+
+    def get_frame(self, client_id: int, decoder: Callable[[FrameMessage], None]) -> None:
+        """
+        TODO
+
+        :param client_id:   TODO
+        :param decoder:     TODO
+        """
+        # Look up the handler for the client whose frame we want to get. If the client is no longer active, early out.
+        client_handler = self._get_client_handler(client_id)
+        if client_handler is None:
+            return
+
+        # Pass the first frame on the client's message queue to the frame decoder.
+        decoder(client_handler.get_frame_message_queue().peek())
+
+        # Pop the frame that's just been read from the message queue.
+        client_handler.get_frame_message_queue().pop()
 
     def start(self):
         """Start the server."""

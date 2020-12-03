@@ -50,6 +50,14 @@ class ClientHandler:
         """
         return self.__client_id
 
+    def get_frame_message_queue(self) -> PooledQueue[FrameMessage]:
+        """
+        Get the queue containing the frame messages received from the client.
+
+        :return:    The queue containing the frame messages received from the client.
+        """
+        return self.__frame_message_queue
+
     def is_connection_ok(self) -> bool:
         """
         Get whether the connection is still ok (tracks whether or not the most recent read/write succeeded).
@@ -80,12 +88,6 @@ class ClientHandler:
                         np.copyto(msg.get_data(), frame_msg.get_data())
 
                 self.__connection_ok = SocketUtil.write_message(self.__sock, AckMessage())
-
-                # TEMPORARY
-                rgb_image: np.ndarray = frame_msg.get_image_data(0).reshape(frame_msg.get_image_shapes()[0])
-                depth_image: np.ndarray = frame_msg.get_image_data(1).view(np.uint16).reshape(frame_msg.get_image_shapes()[1][:2])
-                cv2.imshow("Received Image", rgb_image)
-                cv2.waitKey()
 
     def run_post(self) -> None:
         """Run any code that should happen after the main loop for the client."""
