@@ -8,6 +8,7 @@ from typing import Optional
 from smg.openni import OpenNICamera
 from smg.mapping.remote import Client, RGBDFrameUtil
 from smg.pyorbslam2 import RGBDTracker
+from smg.utility import ImageUtil
 
 
 def main() -> None:
@@ -58,7 +59,7 @@ def main() -> None:
                     if pose is not None:
                         # Send the RGB-D frame across to the server.
                         client.send_frame_message(lambda msg: RGBDFrameUtil.fill_frame_message(
-                            frame_idx, rgb_image, depth_image, pose, msg
+                            frame_idx, rgb_image, ImageUtil.to_short_depth(depth_image), pose, msg
                         ))
 
                     # Show the RGB image so that the user can see what's going on (and exit if desired).

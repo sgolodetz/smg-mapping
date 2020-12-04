@@ -4,8 +4,6 @@ import struct
 
 from typing import Tuple
 
-from smg.utility import ImageUtil
-
 from .calibration_message import CalibrationMessage
 from .frame_message import FrameMessage
 
@@ -92,7 +90,7 @@ class RGBDFrameUtil:
         msg.set_frame_index(frame_idx)
         msg.set_image_data(0, rgb_image.reshape(-1))
         msg.set_pose(0, pose)
-        msg.set_image_data(1, ImageUtil.to_short_depth(depth_image).reshape(-1).view(np.uint8))
+        msg.set_image_data(1, depth_image.reshape(-1).view(np.uint8))
         msg.set_pose(1, pose)
 
     @staticmethod
