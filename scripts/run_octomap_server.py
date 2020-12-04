@@ -8,7 +8,7 @@ from OpenGL.GL import *
 from timeit import default_timer as timer
 from typing import Tuple
 
-from smg.mapping import RGBDFrameReceiver, Server
+from smg.mapping.remote import RGBDFrameReceiver, Server
 from smg.pyoctomap import *
 from smg.utility import ImageUtil
 

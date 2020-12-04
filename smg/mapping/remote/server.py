@@ -6,7 +6,8 @@ import threading
 from select import select
 from typing import Callable, Dict, Optional, Set
 
-from smg.mapping import ClientHandler, FrameMessage
+from .client_handler import ClientHandler
+from .frame_message import FrameMessage
 
 
 class Server:

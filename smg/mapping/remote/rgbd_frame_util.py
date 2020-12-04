@@ -3,8 +3,10 @@ import struct
 
 from typing import Tuple
 
-from smg.mapping import CalibrationMessage, FrameMessage
 from smg.utility import ImageUtil
+
+from .calibration_message import CalibrationMessage
+from .frame_message import FrameMessage
 
 
 class RGBDFrameUtil:

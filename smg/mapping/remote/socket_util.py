@@ -3,7 +3,7 @@ import socket
 
 from typing import TypeVar
 
-from smg.mapping import Message
+from .message import Message
 
 
 # TYPE VARIABLE

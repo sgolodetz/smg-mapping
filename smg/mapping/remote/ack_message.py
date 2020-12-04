@@ -1,4 +1,4 @@
-from smg.mapping import SimpleMessage
+from .simple_message import SimpleMessage
 
 
 class AckMessage(SimpleMessage[int]):

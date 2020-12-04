@@ -1,6 +1,6 @@
 import cv2
 
-from smg.mapping import RGBDFrameReceiver, Server
+from smg.mapping.remote import RGBDFrameReceiver, Server
 
 
 def main() -> None:

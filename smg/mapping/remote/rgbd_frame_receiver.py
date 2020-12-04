@@ -2,7 +2,7 @@ import numpy as np
 
 from typing import Optional
 
-from smg.mapping import FrameMessage
+from .frame_message import FrameMessage
 
 
 class RGBDFrameReceiver:

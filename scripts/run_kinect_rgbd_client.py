@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 from typing import Optional
 
 from smg.openni import OpenNICamera
-from smg.mapping import Client, RGBDFrameUtil
+from smg.mapping.remote import Client, RGBDFrameUtil
 from smg.pyorbslam2 import RGBDTracker
 
 

@@ -4,7 +4,7 @@ import struct
 from itertools import chain
 from typing import List, Tuple
 
-from smg.mapping import Message
+from .message import Message
 
 
 class CalibrationMessage(Message):

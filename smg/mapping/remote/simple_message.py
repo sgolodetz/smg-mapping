@@ -4,7 +4,7 @@ import struct
 
 from typing import Generic, Optional, TypeVar
 
-from smg.mapping import Message
+from .message import Message
 
 
 # TYPE VARIABLE
