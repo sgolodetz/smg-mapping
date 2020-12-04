@@ -62,7 +62,7 @@ def main() -> None:
                         ))
 
                     # Show the RGB image so that the user can see what's going on (and exit if desired).
-                    cv2.imshow("Sent RGB Image", rgb_image)
+                    cv2.imshow("Kinect RGB-D Client", rgb_image)
                     c: int = cv2.waitKey(1)
                     if c == ord('q'):
                         break
