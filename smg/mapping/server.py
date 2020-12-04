@@ -3,6 +3,7 @@ from __future__ import annotations
 import socket
 import threading
 
+from select import select
 from typing import Callable, Dict, Optional, Set
 
 from smg.mapping import ClientHandler, FrameMessage
@@ -28,6 +29,22 @@ class Server:
 
         self.__lock: threading.Lock = threading.Lock()
         self.__client_ready: threading.Condition = threading.Condition(self.__lock)
+
+    # DESTRUCTOR
+
+    def __del__(self):
+        """Destroy the server."""
+        self.terminate()
+
+    # SPECIAL METHODS
+
+    def __enter__(self):
+        """TODO"""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """TODO"""
+        self.terminate()
 
     # PUBLIC METHODS
 
@@ -72,9 +89,19 @@ class Server:
         """
         return not self.has_finished(client_id)
 
-    def start(self):
+    def start(self) -> None:
         """Start the server."""
         self.__server_thread.start()
+
+    def terminate(self) -> None:
+        """Tell the server to terminate."""
+        with self.__lock:
+            if not self.__should_terminate.is_set():
+                self.__should_terminate.set()
+
+                self.__server_thread.join()
+
+                # TODO
 
     # PROTECTED METHODS
 
@@ -83,14 +110,19 @@ class Server:
         Try to get the handler of the active client with the specified ID.
 
         .. note::
-            If the client has not yet started, this will block.
+            If the server is still active and the client has not yet started, this will block.
 
         :param client_id:   The ID of the client whose handler we want to get.
-        :return:            The client handler, if the client is active, or None if it has finished.
+        :return:            The client handler, if the client and the server are both active, or None otherwise.
         """
         with self.__lock:
-            # Wait until the client is either active or has terminated.
-            while self.__client_handlers.get(client_id) is None and client_id not in self.__finished_clients:
+            # Wait until one of the following is true:
+            #   (i) The client is active
+            #  (ii) The client has terminated
+            # (iii) The server is terminating
+            while self.__client_handlers.get(client_id) is None \
+                    and client_id not in self.__finished_clients \
+                    and not self.__should_terminate.is_set():
                 self.__client_ready.wait(0.1)
 
             return self.__client_handlers.get(client_id)
@@ -142,13 +174,22 @@ class Server:
         print(f"Listening for connections on 127.0.0.1:{self.__port}...")
 
         while not self.__should_terminate.is_set():
-            client_sock, client_endpoint = server_sock.accept()
-            print(f"Accepted connection from client {self.__next_client_id} @ {client_endpoint}")
-            with self.__lock:
-                client_handler: ClientHandler = ClientHandler(
-                    self.__next_client_id, client_sock, self.__should_terminate
-                )
-                client_thread: threading.Thread = threading.Thread(target=self.__handle_client, args=[client_handler])
-                client_thread.start()
-                client_handler.set_thread(client_thread)
-                self.__next_client_id += 1
+            timeout: float = 0.1
+            readable, _, _ = select([server_sock], [], [], timeout)
+            if self.__should_terminate.is_set():
+                break
+
+            for s in readable:
+                if s is server_sock:
+                    client_sock, client_endpoint = server_sock.accept()
+                    print(f"Accepted connection from client {self.__next_client_id} @ {client_endpoint}")
+                    with self.__lock:
+                        client_handler: ClientHandler = ClientHandler(
+                            self.__next_client_id, client_sock, self.__should_terminate
+                        )
+                        client_thread: threading.Thread = threading.Thread(
+                            target=self.__handle_client, args=[client_handler]
+                        )
+                        client_thread.start()
+                        client_handler.set_thread(client_thread)
+                        self.__next_client_id += 1
