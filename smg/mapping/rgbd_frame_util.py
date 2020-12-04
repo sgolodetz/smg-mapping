@@ -1,4 +1,7 @@
 import numpy as np
+import struct
+
+from typing import Tuple
 
 from smg.mapping import CalibrationMessage, FrameMessage
 from smg.utility import ImageUtil
@@ -40,6 +43,23 @@ class RGBDFrameUtil:
         msg.set_image_data(1, ImageUtil.to_short_depth(depth_image).reshape(-1).view(np.uint8))
 
     @staticmethod
-    def make_calibration_message() -> CalibrationMessage:
-        # TODO
-        pass
+    def make_calibration_message(rgb_image_size: Tuple[int, int], depth_image_size: Tuple[int, int],
+                                 rgb_intrinsics: Tuple[float, float, float, float],
+                                 depth_intrinsics: Tuple[float, float, float, float]) -> CalibrationMessage:
+        """
+        TODO
+
+        :param rgb_image_size:      TODO
+        :param depth_image_size:    TODO
+        :param rgb_intrinsics:      TODO
+        :param depth_intrinsics:    TODO
+        :return:                    TODO
+        """
+        calib_msg: CalibrationMessage = CalibrationMessage()
+
+        # noinspection PyTypeChecker
+        calib_msg.set_image_shapes([rgb_image_size[::-1] + (3,), depth_image_size[::-1] + (1,)])
+        calib_msg.set_intrinsics([rgb_intrinsics, depth_intrinsics])
+        calib_msg.set_pixel_byte_sizes([struct.calcsize("<B"), struct.calcsize("<H")])
+
+        return calib_msg
