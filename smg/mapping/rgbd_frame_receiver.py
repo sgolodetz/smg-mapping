@@ -14,6 +14,7 @@ class RGBDFrameReceiver:
         """TODO"""
         self.__rgb_image: Optional[np.ndarray] = None
         self.__depth_image: Optional[np.ndarray] = None
+        self.__pose: Optional[np.ndarray] = None
 
     # SPECIAL METHODS
 
@@ -25,10 +26,11 @@ class RGBDFrameReceiver:
         """
         self.__rgb_image = frame_msg.get_image_data(0).reshape(frame_msg.get_image_shapes()[0])
         self.__depth_image = frame_msg.get_image_data(1).view(np.uint16).reshape(frame_msg.get_image_shapes()[1][:2])
+        self.__pose = frame_msg.get_pose(0)
 
     # PUBLIC METHODS
 
-    def get_depth_image(self) -> Optional[np.ndarray]:
+    def get_depth_image(self) -> np.ndarray:
         """
         TODO
 
@@ -36,7 +38,15 @@ class RGBDFrameReceiver:
         """
         return self.__depth_image
 
-    def get_rgb_image(self) -> Optional[np.ndarray]:
+    def get_pose(self) -> np.ndarray:
+        """
+        TODO
+
+        :return:    TODO
+        """
+        return self.__pose
+
+    def get_rgb_image(self) -> np.ndarray:
         """
         TODO
 

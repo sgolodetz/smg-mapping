@@ -77,7 +77,7 @@ class FrameMessage(Message):
         :param image_idx:   TODO
         :return:            TODO
         """
-        return self.__get_pose_data(image_idx).view(np.float32)
+        return self.__get_pose_data(image_idx).view(np.float32).reshape((4, 4))
 
     def set_frame_index(self, frame_index: int) -> None:
         """

@@ -40,6 +40,7 @@ def main() -> None:
         server.start()
 
         client_id: int = 0
+        pose: np.ndarray = np.eye(4)
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
 
         while True:
@@ -51,11 +52,10 @@ def main() -> None:
                     # noinspection PyProtectedMember
                     os._exit(0)
 
-            pose: np.ndarray = np.eye(4)
-
             if server.has_frames_now(client_id):
                 # Get an RGB-D frame from the server.
                 server.get_frame(client_id, receiver)
+                pose = receiver.get_pose()
 
                 # Use the depth image and pose to make an Octomap point cloud.
                 pcd: Pointcloud = OctomapUtil.make_point_cloud(
