@@ -18,6 +18,7 @@ def main() -> None:
     pygame.init()
     window_size: Tuple[int, int] = (640, 480)
     pygame.display.set_mode(window_size, pygame.DOUBLEBUF | pygame.OPENGL)
+    pygame.display.set_caption("Octomap Server")
 
     # Set the projection matrix.
     glMatrixMode(GL_PROJECTION)
