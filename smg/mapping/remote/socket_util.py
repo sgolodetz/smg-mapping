@@ -56,8 +56,11 @@ class SocketUtil:
 
         :param sock:    The socket.
         :param msg:     The message.
-        :return:        True, to allowing chaining of read and write calls.
+        :return:        True, if writing succeeded, or False otherwise.
         """
-        # TODO: Investigate whether it's possible to detect when a write fails, and check for that if it is.
-        sock.sendall(msg.get_data().tobytes())
-        return True
+        try:
+            sock.sendall(msg.get_data().tobytes())
+            return True
+        except ConnectionResetError:
+            # If an exception is thrown during the write, return False.
+            return False
