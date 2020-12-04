@@ -23,6 +23,8 @@ def main() -> None:
             if c == ord('q'):
                 break
 
+    cv2.destroyAllWindows()
+
 
 if __name__ == "__main__":
     main()

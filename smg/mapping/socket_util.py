@@ -28,9 +28,13 @@ class SocketUtil:
         :return:        TODO
         """
         try:
-            data: bytes = sock.recv(msg.get_size())
+            data: bytes = b""
             while len(data) < msg.get_size():
-                data += sock.recv(msg.get_size() - len(data))
+                received: bytes = sock.recv(msg.get_size() - len(data))
+                if len(received) > 0:
+                    data += received
+                else:
+                    return False
             np.copyto(msg.get_data(), np.frombuffer(data, dtype=np.uint8))
             return True
         except (ConnectionResetError, socket.timeout, ValueError):
