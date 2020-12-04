@@ -21,15 +21,15 @@ T = TypeVar('T', bound=Message)
 
 # MAIN CLASS
 
-class ClientHandler:
-    """Used to manage the connection to a client."""
+class MappingClientHandler:
+    """Used to manage the connection to a mapping client."""
 
     # CONSTRUCTOR
 
     def __init__(self, client_id: int, sock: socket.SocketType, should_terminate: threading.Event, *,
                  frame_decompressor: Optional[Callable[[FrameMessage], FrameMessage]] = None):
         """
-        Construct a client handler.
+        Construct a mapping client handler.
 
         :param client_id:           The ID used by the server to refer to the client.
         :param sock:                The socket used to communicate with the client.

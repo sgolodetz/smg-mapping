@@ -10,6 +10,6 @@ from .socket_util import SocketUtil
 from .rgbd_frame_receiver import RGBDFrameReceiver
 from .rgbd_frame_util import RGBDFrameUtil
 
-from .client import Client
-from .client_handler import ClientHandler
-from .server import Server
+from .mapping_client import MappingClient
+from .mapping_client_handler import MappingClientHandler
+from .mapping_server import MappingServer

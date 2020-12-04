@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 from typing import Optional
 
 from smg.openni import OpenNICamera
-from smg.mapping.remote import Client, RGBDFrameUtil
+from smg.mapping.remote import MappingClient, RGBDFrameUtil
 from smg.pyorbslam2 import RGBDTracker
 from smg.utility import ImageUtil
 
@@ -28,7 +28,7 @@ def main() -> None:
 
     try:
         with OpenNICamera(mirror_images=True) as camera:
-            with Client(frame_compressor=RGBDFrameUtil.compress_frame_message) as client:
+            with MappingClient(frame_compressor=RGBDFrameUtil.compress_frame_message) as client:
                 # Send a calibration message to tell the server the camera parameters.
                 client.send_calibration_message(RGBDFrameUtil.make_calibration_message(
                     camera.get_colour_size(), camera.get_depth_size(),

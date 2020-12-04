@@ -6,11 +6,11 @@ import threading
 from select import select
 from typing import Callable, Dict, Optional, Set
 
-from .client_handler import ClientHandler
+from .mapping_client_handler import MappingClientHandler
 from .frame_message import FrameMessage
 
 
-class Server:
+class MappingServer:
     """TODO"""
 
     # CONSTRUCTOR
@@ -23,7 +23,7 @@ class Server:
         :param port:                TODO
         :param frame_decompressor:  An optional function to use to decompress received frames.
         """
-        self.__client_handlers: Dict[int, ClientHandler] = {}
+        self.__client_handlers: Dict[int, MappingClientHandler] = {}
         self.__finished_clients: Set[int] = set()
         self.__frame_decompressor: Optional[Callable[[FrameMessage], FrameMessage]] = frame_decompressor
         self.__next_client_id: int = 0
@@ -59,7 +59,7 @@ class Server:
         :param client_id:   TODO
         :param receiver:    TODO
         """
-        client_handler: ClientHandler = self._get_client_handler(client_id, wait_for_start=True)
+        client_handler: MappingClientHandler = self._get_client_handler(client_id, wait_for_start=True)
         if client_handler is not None:
             client_handler.get_frame(receiver)
 
@@ -80,7 +80,7 @@ class Server:
         :param client_id:   The ID of the client to check.
         :return:            True, if the client is currently active and ready to yield a frame, or False otherwise.
         """
-        client_handler: ClientHandler = self._get_client_handler(client_id, wait_for_start=False)
+        client_handler: MappingClientHandler = self._get_client_handler(client_id, wait_for_start=False)
         return client_handler.has_frames_now() if client_handler is not None else False
 
     def has_more_frames(self, client_id: int) -> bool:
@@ -106,7 +106,7 @@ class Server:
 
     # PROTECTED METHODS
 
-    def _get_client_handler(self, client_id: int, *, wait_for_start: bool) -> Optional[ClientHandler]:
+    def _get_client_handler(self, client_id: int, *, wait_for_start: bool) -> Optional[MappingClientHandler]:
         """
         Try to get the handler of the active client with the specified ID.
 
@@ -131,7 +131,7 @@ class Server:
 
     # PRIVATE METHODS
 
-    def __handle_client(self, client_handler: ClientHandler) -> None:
+    def __handle_client(self, client_handler: MappingClientHandler) -> None:
         """
         Handle messages from a client.
 
@@ -187,7 +187,7 @@ class Server:
                     client_sock, client_endpoint = server_sock.accept()
                     print(f"Accepted connection from client {self.__next_client_id} @ {client_endpoint}")
                     with self.__lock:
-                        client_handler: ClientHandler = ClientHandler(
+                        client_handler: MappingClientHandler = MappingClientHandler(
                             self.__next_client_id, client_sock, self.__should_terminate,
                             frame_decompressor=self.__frame_decompressor
                         )

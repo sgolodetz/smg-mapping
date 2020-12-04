@@ -12,7 +12,7 @@ from .frame_message import FrameMessage
 from .socket_util import SocketUtil
 
 
-class Client:
+class MappingClient:
     """A client that can be used to communicate with a remote mapping server."""
 
     # CONSTRUCTOR
@@ -20,7 +20,7 @@ class Client:
     def __init__(self, endpoint: Tuple[str, int] = ("127.0.0.1", 7851), *, timeout: int = 10,
                  frame_compressor: Optional[Callable[[FrameMessage], FrameMessage]] = None):
         """
-        Construct a client.
+        Construct a mapping client.
 
         :param endpoint:            The server host and port, e.g. ("127.0.0.1", 7851).
         :param timeout:             The socket timeout to use (in seconds).
