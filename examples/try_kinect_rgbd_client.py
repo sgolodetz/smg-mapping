@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 
 from smg.openni import OpenNICamera
 from smg.mapping import Client, RGBDFrameUtil
@@ -18,12 +19,15 @@ def main() -> None:
 
                 # Until the user wants to quit:
                 while True:
-                    # Grab an RGB-D frame from the camera.
+                    # Grab an RGB-D pair from the camera.
                     rgb_image, depth_image = camera.get_images()
 
-                    # Send it across to the server.
+                    # Make a dummy pose.
+                    pose: np.ndarray = np.eye(4)
+
+                    # Send the RGB-D frame across to the server.
                     client.send_frame_message(
-                        lambda msg: RGBDFrameUtil.fill_frame_message(frame_idx, rgb_image, depth_image, msg)
+                        lambda msg: RGBDFrameUtil.fill_frame_message(frame_idx, rgb_image, depth_image, pose, msg)
                     )
 
                     # Show the RGB image so that the user can see what's going on (and exit if desired).

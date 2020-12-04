@@ -24,16 +24,17 @@ class FrameMessage(Message):
         self.__image_byte_sizes: List[int] = image_byte_sizes
 
         self.__frame_index_fmt: str = "<i"
-        self.__pose_fmt: str = "<ffffffffffff"
+        self.__pose_byte_size: int = struct.calcsize("<ffffffffffffffff")
+        self.__poses_fmt: str = "<" + "ffffffffffffffff" * len(image_shapes)
 
         self.__frame_index_segment: Tuple[int, int] = (
             0, struct.calcsize(self.__frame_index_fmt)
         )
-        self.__pose_segment: Tuple[int, int] = (
-            Message._end_of(self.__frame_index_segment), struct.calcsize(self.__pose_fmt)
+        self.__poses_segment: Tuple[int, int] = (
+            Message._end_of(self.__frame_index_segment), struct.calcsize(self.__poses_fmt)
         )
         self.__images_segment: Tuple[int, int] = (
-            Message._end_of(self.__pose_segment), sum(self.__image_byte_sizes)
+            Message._end_of(self.__poses_segment), sum(self.__image_byte_sizes)
         )
 
         self._data = np.zeros(Message._end_of(self.__images_segment), dtype=np.uint8)
@@ -69,6 +70,15 @@ class FrameMessage(Message):
         """
         return self.__image_shapes
 
+    def get_pose(self, image_idx: int) -> np.ndarray:
+        """
+        TODO
+
+        :param image_idx:   TODO
+        :return:            TODO
+        """
+        return self.__get_pose_data(image_idx).view(np.float32)
+
     def set_frame_index(self, frame_index: int) -> None:
         """
         Copy a frame index into the appropriate byte segment in the message.
@@ -85,3 +95,24 @@ class FrameMessage(Message):
         :param image_data:  TODO
         """
         np.copyto(self.get_image_data(image_idx), image_data)
+
+    def set_pose(self, image_idx: int, pose: np.ndarray) -> None:
+        """
+        TODO
+
+        :param image_idx:   TODO
+        :param pose:        TODO
+        """
+        np.copyto(self.__get_pose_data(image_idx), pose.astype(np.float32).reshape(-1).view(np.uint8))
+
+    # PRIVATE METHODS
+
+    def __get_pose_data(self, image_idx: int) -> np.ndarray:
+        """
+        TODO
+
+        :param image_idx:   TODO
+        :return:            TODO
+        """
+        start: int = self.__poses_segment[0] + image_idx * self.__pose_byte_size
+        return self._data[start:start+self.__pose_byte_size]
