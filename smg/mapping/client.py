@@ -1,7 +1,7 @@
 import socket
 import threading
 
-from typing import Callable, Optional, Tuple
+from typing import Callable, cast, Optional, Tuple
 
 from smg.mapping import AckMessage, CalibrationMessage, FrameHeaderMessage, FrameMessage, SocketUtil
 from smg.utility import PooledQueue
@@ -54,14 +54,6 @@ class Client:
 
     # PUBLIC METHODS
 
-    def begin_push_frame_message(self) -> PooledQueue[FrameMessage].PushHandler:
-        """
-        Start the push of a frame message so that it can be sent to the server.
-
-        :return:     A push handler that will handle the process of pushing a frame message onto the queue.
-        """
-        return self.__frame_message_queue.begin_push()
-
     def send_calibration_message(self, calib_msg: CalibrationMessage) -> None:
         """
         Send a calibration message to the server.
@@ -95,6 +87,23 @@ class Client:
         # Start the message sender thread.
         self.__message_sender_thread = threading.Thread(target=self.__run_message_sender)
         self.__message_sender_thread.start()
+
+    def send_frame_message(self, frame_filler: Callable[[FrameMessage], None]) -> None:
+        """
+        Send a frame message to the server.
+
+        .. note::
+            In order to support different types of frame message, it is imperative that the client doesn't
+            know anything about the contents of the message being sent. We achieve this by making it call
+            a callback function that fills in the contents of the message.
+
+        :param frame_filler:    A callback function that should fill in the contents of the message.
+        """
+        with self.__frame_message_queue.begin_push() as push_handler:
+            elt: Optional[FrameMessage] = push_handler.get()
+            if elt:
+                msg: FrameMessage = cast(FrameMessage, elt)
+                frame_filler(msg)
 
     def terminate(self) -> None:
         """Tell the client to terminate."""

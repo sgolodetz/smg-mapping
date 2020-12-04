@@ -1,9 +1,7 @@
 import cv2
 
-from typing import cast, Optional
-
 from smg.openni import OpenNICamera
-from smg.mapping import Client, FrameMessage, RGBDFrameUtil
+from smg.mapping import Client, RGBDFrameUtil
 
 
 def main() -> None:
@@ -16,18 +14,17 @@ def main() -> None:
                     camera.get_colour_intrinsics(), camera.get_depth_intrinsics()
                 ))
 
-                # Until the user wants to quit:
                 frame_idx: int = 0
+
+                # Until the user wants to quit:
                 while True:
                     # Grab an RGB-D frame from the camera.
                     rgb_image, depth_image = camera.get_images()
 
                     # Send it across to the server.
-                    with client.begin_push_frame_message() as push_handler:
-                        elt: Optional[FrameMessage] = push_handler.get()
-                        if elt:
-                            msg: FrameMessage = cast(FrameMessage, elt)
-                            RGBDFrameUtil.fill_frame_message(frame_idx, rgb_image, depth_image, msg)
+                    client.send_frame_message(
+                        lambda msg: RGBDFrameUtil.fill_frame_message(frame_idx, rgb_image, depth_image, msg)
+                    )
 
                     # Show the RGB image so that the user can see what's going on (and exit if desired).
                     cv2.imshow("Sent RGB Image", rgb_image)
