@@ -98,10 +98,7 @@ class Server:
         with self.__lock:
             if not self.__should_terminate.is_set():
                 self.__should_terminate.set()
-
                 self.__server_thread.join()
-
-                # TODO
 
     # PROTECTED METHODS
 
@@ -131,9 +128,9 @@ class Server:
 
     def __handle_client(self, client_handler: ClientHandler) -> None:
         """
-        TODO
+        Handle messages from a client.
 
-        :param client_handler:  TODO
+        :param client_handler:  The handler for the client.
         """
         client_id: int = client_handler.get_client_id()
         print(f"Starting client: {client_id}")
@@ -158,14 +155,15 @@ class Server:
         # Run the post-loop code for the client.
         client_handler.run_post()
 
-        # Once the client's finished, add it to the finished clients set so that it can be cleaned up.
+        # Once the client's finished, add it to the finished clients set and remove its handler.
         with self.__lock:
             print(f"Stopping client: {client_id}")
             self.__finished_clients.add(client_id)
-            # TODO
+            del(self.__client_handlers[client_id])
+            print(f"Client terminated: {client_id}")
 
     def __run_server(self) -> None:
-        """TODO"""
+        """Run the server."""
         # Set up the server socket and listen for connections.
         server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_sock.bind(("127.0.0.1", self.__port))
