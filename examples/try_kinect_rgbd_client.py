@@ -1,5 +1,4 @@
 import cv2
-import numpy as np
 import struct
 
 from typing import cast, Optional, Tuple
@@ -14,13 +13,12 @@ def main() -> None:
             with Client() as client:
                 # Make and send a calibration message.
                 calib_msg: CalibrationMessage = CalibrationMessage()
-                colour_shape: Tuple[int, int, int] = camera.get_colour_size()[::-1] + (3,)
-                depth_shape: Tuple[int, int, int] = camera.get_depth_size()[::-1] + (1,)
-                colour_byte_size: int = np.prod(colour_shape) * struct.calcsize("<B")
-                depth_byte_size: int = np.prod(depth_shape) * struct.calcsize("<H")
-                calib_msg.set_image_byte_sizes([colour_byte_size, depth_byte_size])
-                calib_msg.set_image_shapes([colour_shape, depth_shape])
+                # noinspection PyTypeChecker
+                calib_msg.set_image_shapes([
+                    camera.get_colour_size()[::-1] + (3,), camera.get_depth_size()[::-1] + (1,)
+                ])
                 calib_msg.set_intrinsics([camera.get_colour_intrinsics(), camera.get_depth_intrinsics()])
+                calib_msg.set_pixel_byte_sizes([struct.calcsize("<B"), struct.calcsize("<H")])
                 client.send_calibration_message(calib_msg)
 
                 frame_idx: int = 0

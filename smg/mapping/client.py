@@ -86,7 +86,7 @@ class Client:
         # Initialise the frame message queue.
         capacity: int = 1
         self.__frame_message_queue.initialise(capacity, lambda: FrameMessage(
-            calib_msg.extract_image_shapes(), calib_msg.extract_image_byte_sizes()
+            calib_msg.extract_image_shapes(), calib_msg.extract_uncompressed_image_byte_sizes()
         ))
 
         # Set up the frame compressor.
