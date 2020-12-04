@@ -38,7 +38,7 @@ class Server:
         :param client_id:   TODO
         :param receiver:    TODO
         """
-        # Look up the handler for the client whose frame we want to get. If the client is no longer active, early out.
+        # Look up the handler for the client. If the client is no longer active, early out.
         client_handler = self._get_client_handler(client_id)
         if client_handler is None:
             return
@@ -48,6 +48,41 @@ class Server:
 
         # Pop the frame that's just been read from the message queue.
         client_handler.get_frame_message_queue().pop()
+
+    def has_finished(self, client_id: int) -> bool:
+        """
+        Get whether or not the specified client has finished.
+
+        :param client_id:   The ID of the client to check.
+        :return:            True, if the client has finished, or False otherwise.
+        """
+        with self.__lock:
+            return client_id in self.__finished_clients
+
+    def has_frames_now(self, client_id: int) -> bool:
+        """
+        Get whether or not the specified client is currently active and ready to yield a frame.
+
+        :param client_id:   The ID of the client to check.
+        :return:            True, if the client is currently active and ready to yield a frame, or False otherwise.
+        """
+        # Look up the handler for the client. If the client is no longer active, early out.
+        client_handler: ClientHandler = self._get_client_handler(client_id)
+        if client_handler is None:
+            return False
+
+        # Return whether or not there are currently frames on the client's message queue.
+        return not client_handler.get_frame_message_queue().empty()
+
+    def has_more_frames(self, client_id: int) -> bool:
+        """
+        Get whether or not the specified client is currently active and may still have more frames to yield.
+
+        :param client_id:   The ID of the client to check.
+        :return:            True, if the client is currently active and may still have more frames to yield,
+                            or False otherwise.
+        """
+        return not self.has_finished(client_id)
 
     def start(self):
         """Start the server."""
