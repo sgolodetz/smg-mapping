@@ -18,17 +18,17 @@ class Client:
     # CONSTRUCTOR
 
     def __init__(self, endpoint: Tuple[str, int] = ("127.0.0.1", 7851), *, timeout: int = 10,
-                 frame_encoder: Optional[Callable[[FrameMessage], FrameMessage]] = None):
+                 frame_compressor: Optional[Callable[[FrameMessage], FrameMessage]] = None):
         """
         Construct a client.
 
-        :param endpoint:        The server host and port, e.g. ("127.0.0.1", 7851).
-        :param timeout:         The socket timeout to use (in seconds).
-        :param frame_encoder:   An optional function to use to encode frames prior to transmission.
+        :param endpoint:            The server host and port, e.g. ("127.0.0.1", 7851).
+        :param timeout:             The socket timeout to use (in seconds).
+        :param frame_compressor:    An optional function to use to compress frames prior to transmission.
         """
         self.__alive: bool = False
         self.__calib_msg: Optional[CalibrationMessage] = None
-        self.__frame_encoder: Optional[Callable[[FrameMessage], FrameMessage]] = frame_encoder
+        self.__frame_compressor: Optional[Callable[[FrameMessage], FrameMessage]] = frame_compressor
         self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage](PooledQueue.PES_DISCARD)
         self.__message_sender_thread: Optional[threading.Thread] = None
         self.__should_terminate: threading.Event = threading.Event()
@@ -83,7 +83,7 @@ class Client:
         # Initialise the frame message queue.
         capacity: int = 1
         self.__frame_message_queue.initialise(capacity, lambda: FrameMessage(
-            calib_msg.extract_image_shapes(), calib_msg.extract_uncompressed_image_byte_sizes()
+            calib_msg.get_image_shapes(), calib_msg.get_uncompressed_image_byte_sizes()
         ))
 
         # Set up the frame compressor.
@@ -136,21 +136,21 @@ class Client:
             if self.__should_terminate.is_set():
                 break
 
-            # If requested, encode the frame prior to transmission.
-            encoded_frame_msg: FrameMessage = frame_msg
-            if self.__frame_encoder is not None:
-                encoded_frame_msg = self.__frame_encoder(frame_msg)
+            # If requested, compress the frame prior to transmission.
+            compressed_frame_msg: FrameMessage = frame_msg
+            if self.__frame_compressor is not None:
+                compressed_frame_msg = self.__frame_compressor(frame_msg)
 
             # Make the frame header message.
             header_msg: FrameHeaderMessage = FrameHeaderMessage(self.__calib_msg.get_max_images())
-            header_msg.set_image_byte_sizes(encoded_frame_msg.get_image_byte_sizes())
-            header_msg.set_image_shapes(encoded_frame_msg.get_image_shapes())
+            header_msg.set_image_byte_sizes(compressed_frame_msg.get_image_byte_sizes())
+            header_msg.set_image_shapes(compressed_frame_msg.get_image_shapes())
 
             # First send the frame header message, then send the frame message, then wait for an acknowledgement
             # from the server. We chain all of these with 'and' so as to early out in case of failure.
             connection_ok = connection_ok and \
                 SocketUtil.write_message(self.__sock, header_msg) and \
-                SocketUtil.write_message(self.__sock, encoded_frame_msg) and \
+                SocketUtil.write_message(self.__sock, compressed_frame_msg) and \
                 SocketUtil.read_message(self.__sock, ack_msg)
 
             # Remove the frame message that we have just sent from the queue.

@@ -41,6 +41,14 @@ class FrameMessage(Message):
 
     # PUBLIC METHODS
 
+    def get_frame_index(self) -> int:
+        """
+        TODO
+
+        :return:    TODO
+        """
+        return struct.unpack_from(self.__frame_index_fmt, self._data, self.__frame_index_segment[0])[0]
+
     def get_image_byte_sizes(self) -> List[int]:
         """
         TODO

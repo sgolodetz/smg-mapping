@@ -15,14 +15,17 @@ class Server:
 
     # CONSTRUCTOR
 
-    def __init__(self, port: int = 7851):
+    def __init__(self, port: int = 7851, *,
+                 frame_decompressor: Optional[Callable[[FrameMessage], FrameMessage]] = None):
         """
         TODO
 
-        :param port:    TODO
+        :param port:                TODO
+        :param frame_decompressor:  An optional function to use to decompress received frames.
         """
         self.__client_handlers: Dict[int, ClientHandler] = {}
         self.__finished_clients: Set[int] = set()
+        self.__frame_decompressor: Optional[Callable[[FrameMessage], FrameMessage]] = frame_decompressor
         self.__next_client_id: int = 0
         self.__port: int = port
         self.__server_thread: threading.Thread = threading.Thread(target=self.__run_server)
@@ -185,7 +188,8 @@ class Server:
                     print(f"Accepted connection from client {self.__next_client_id} @ {client_endpoint}")
                     with self.__lock:
                         client_handler: ClientHandler = ClientHandler(
-                            self.__next_client_id, client_sock, self.__should_terminate
+                            self.__next_client_id, client_sock, self.__should_terminate,
+                            frame_decompressor=self.__frame_decompressor
                         )
                         client_thread: threading.Thread = threading.Thread(
                             target=self.__handle_client, args=[client_handler]

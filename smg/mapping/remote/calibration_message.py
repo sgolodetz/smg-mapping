@@ -36,9 +36,9 @@ class CalibrationMessage(Message):
 
     # PUBLIC METHODS
 
-    def extract_image_shapes(self) -> List[Tuple[int, int, int]]:
+    def get_image_shapes(self) -> List[Tuple[int, int, int]]:
         """
-        Extract the image shapes from the message.
+        Get the image shapes from the message.
 
         :return:    The image shapes.
         """
@@ -47,9 +47,9 @@ class CalibrationMessage(Message):
         )
         return list(zip(flat[::3], flat[1::3], flat[2::3]))
 
-    def extract_intrinsics(self) -> List[Tuple[float, float, float, float]]:
+    def get_intrinsics(self) -> List[Tuple[float, float, float, float]]:
         """
-        Extract the camera intrinsics from the message.
+        Get the camera intrinsics from the message.
 
         :return:    The camera intrinsics, as (fx, fy, cx, cy) tuples.
         """
@@ -58,18 +58,6 @@ class CalibrationMessage(Message):
         )
         return list(zip(flat[::4], flat[1::4], flat[2::4], flat[3::4]))
 
-    def extract_uncompressed_image_byte_sizes(self) -> List[int]:
-        """
-        TODO
-
-        :return:    TODO
-        """
-        image_shapes: List[Tuple[int, int, int]] = self.extract_image_shapes()
-        pixel_byte_sizes: List[int] = list(
-            struct.unpack_from(self.__pixel_byte_sizes_fmt, self._data, self.__pixel_byte_sizes_segment[0])
-        )
-        return [np.prod(s) * b for s, b in zip(image_shapes, pixel_byte_sizes)]
-
     def get_max_images(self) -> int:
         """
         TODO
@@ -77,6 +65,18 @@ class CalibrationMessage(Message):
         :return:    TODO
         """
         return self.__max_images
+
+    def get_uncompressed_image_byte_sizes(self) -> List[int]:
+        """
+        TODO
+
+        :return:    TODO
+        """
+        image_shapes: List[Tuple[int, int, int]] = self.get_image_shapes()
+        pixel_byte_sizes: List[int] = list(
+            struct.unpack_from(self.__pixel_byte_sizes_fmt, self._data, self.__pixel_byte_sizes_segment[0])
+        )
+        return [np.prod(s) * b for s, b in zip(image_shapes, pixel_byte_sizes)]
 
     def set_image_shapes(self, image_shapes: List[Tuple[int, int, int]]) -> None:
         """

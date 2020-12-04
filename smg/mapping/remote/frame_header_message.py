@@ -30,7 +30,7 @@ class FrameHeaderMessage(Message):
 
     # PUBLIC METHODS
 
-    def extract_image_byte_sizes(self) -> List[int]:
+    def get_image_byte_sizes(self) -> List[int]:
         """
         TODO
 
@@ -38,7 +38,7 @@ class FrameHeaderMessage(Message):
         """
         return list(struct.unpack_from(self.__image_byte_sizes_fmt, self._data, self.__image_byte_sizes_segment[0]))
 
-    def extract_image_shapes(self) -> List[Tuple[int, int, int]]:
+    def get_image_shapes(self) -> List[Tuple[int, int, int]]:
         """
         TODO
 

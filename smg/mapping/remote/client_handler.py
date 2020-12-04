@@ -26,17 +26,20 @@ class ClientHandler:
 
     # CONSTRUCTOR
 
-    def __init__(self, client_id: int, sock: socket.SocketType, should_terminate: threading.Event):
+    def __init__(self, client_id: int, sock: socket.SocketType, should_terminate: threading.Event, *,
+                 frame_decompressor: Optional[Callable[[FrameMessage], FrameMessage]] = None):
         """
         Construct a client handler.
 
         :param client_id:           The ID used by the server to refer to the client.
         :param sock:                The socket used to communicate with the client.
         :param should_terminate:    Whether or not the server should terminate (read-only, set within the server).
+        :param frame_decompressor:  An optional function to use to decompress received frames.
         """
         self.__calib_msg: Optional[CalibrationMessage] = None
         self.__client_id: int = client_id
         self.__connection_ok: bool = True
+        self.__frame_decompressor: Optional[Callable[[FrameMessage], FrameMessage]] = frame_decompressor
         self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage](PooledQueue.PES_DISCARD)
         self.__image_shapes: List[Tuple[int, int, int]] = []
         self.__intrinsics: List[Tuple[float, float, float, float]] = []
@@ -92,20 +95,26 @@ class ClientHandler:
         self.__connection_ok = SocketUtil.read_message(self.__sock, header_msg)
         if self.__connection_ok:
             # If that succeeds, set up a frame message accordingly.
-            image_shapes: List[Tuple[int, int, int]] = header_msg.extract_image_shapes()
-            image_byte_sizes: List[int] = header_msg.extract_image_byte_sizes()
+            image_shapes: List[Tuple[int, int, int]] = header_msg.get_image_shapes()
+            image_byte_sizes: List[int] = header_msg.get_image_byte_sizes()
             frame_msg: FrameMessage = FrameMessage(image_shapes, image_byte_sizes)
 
             # Now, read the frame message itself.
             self.__connection_ok = SocketUtil.read_message(self.__sock, frame_msg)
             if self.__connection_ok:
-                # TODO: Uncompression, eventually.
+                # TODO: Comment here.
+                decompressed_frame_msg: FrameMessage = frame_msg
+                if self.__frame_decompressor is not None:
+                    decompressed_frame_msg = self.__frame_decompressor(frame_msg)
+
+                # TODO: Comment here.
                 with self.__frame_message_queue.begin_push() as push_handler:
                     elt: Optional[FrameMessage] = push_handler.get()
                     if elt is not None:
                         msg: FrameMessage = cast(FrameMessage, elt)
-                        np.copyto(msg.get_data(), frame_msg.get_data())
+                        np.copyto(msg.get_data(), decompressed_frame_msg.get_data())
 
+                # TODO: Comment here.
                 self.__connection_ok = SocketUtil.write_message(self.__sock, AckMessage())
 
     def run_post(self) -> None:
@@ -123,8 +132,8 @@ class ClientHandler:
         # If the calibration message was successfully read:
         if self.__connection_ok:
             # Save the camera parameters.
-            self.__image_shapes = self.__calib_msg.extract_image_shapes()
-            self.__intrinsics = self.__calib_msg.extract_intrinsics()
+            self.__image_shapes = self.__calib_msg.get_image_shapes()
+            self.__intrinsics = self.__calib_msg.get_intrinsics()
 
             # Print the camera parameters out for debugging purposes.
             print(
@@ -134,7 +143,7 @@ class ClientHandler:
             # Initialise the frame message queue.
             capacity: int = 5
             self.__frame_message_queue.initialise(capacity, lambda: FrameMessage(
-                self.__calib_msg.extract_image_shapes(), self.__calib_msg.extract_uncompressed_image_byte_sizes()
+                self.__calib_msg.get_image_shapes(), self.__calib_msg.get_uncompressed_image_byte_sizes()
             ))
 
             # Set up the frame compressor.

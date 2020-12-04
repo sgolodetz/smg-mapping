@@ -3,6 +3,7 @@ import numpy as np
 from typing import Optional
 
 from .frame_message import FrameMessage
+from .rgbd_frame_util import RGBDFrameUtil
 
 
 class RGBDFrameReceiver:
@@ -18,15 +19,13 @@ class RGBDFrameReceiver:
 
     # SPECIAL METHODS
 
-    def __call__(self, frame_msg: FrameMessage) -> None:
+    def __call__(self, msg: FrameMessage) -> None:
         """
         TODO
 
-        :param frame_msg:   TODO
+        :param msg: TODO
         """
-        self.__rgb_image = frame_msg.get_image_data(0).reshape(frame_msg.get_image_shapes()[0])
-        self.__depth_image = frame_msg.get_image_data(1).view(np.uint16).reshape(frame_msg.get_image_shapes()[1][:2])
-        self.__pose = frame_msg.get_pose(0)
+        self.__frame_idx, self.__rgb_image, self.__depth_image, self.__pose = RGBDFrameUtil.extract_frame_data(msg)
 
     # PUBLIC METHODS
 

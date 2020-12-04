@@ -27,7 +27,7 @@ def main() -> None:
 
     try:
         with OpenNICamera(mirror_images=True) as camera:
-            with Client() as client:
+            with Client(frame_compressor=RGBDFrameUtil.compress_frame_message) as client:
                 # Send a calibration message to tell the server the camera parameters.
                 client.send_calibration_message(RGBDFrameUtil.make_calibration_message(
                     camera.get_colour_size(), camera.get_depth_size(),
@@ -69,19 +69,15 @@ def main() -> None:
 
                     # Increment the frame index.
                     frame_idx += 1
+
+            # Forcibly terminate the whole process. This isn't graceful, but both OpenNI and ORB-SLAM can
+            # sometimes take a long time to shut down, and it's dull to wait for them. For example, if we
+            # don't do this, then if we wanted to quit whilst the tracker was still initialising, we'd have
+            # to sit around and wait for it to finish, as there's no way to cancel the initialisation.
+            # noinspection PyProtectedMember
+            os._exit(0)
     except RuntimeError as e:
         print(e)
-    finally:
-        # If we're using the tracker:
-        if tracker is not None:
-            if tracker.is_ready():
-                # If the tracker's ready, terminate it.
-                tracker.terminate()
-            else:
-                # If the tracker's not ready yet, forcibly terminate the whole process (this isn't graceful, but
-                # if we don't do it then we may have to wait a very long time for it to finish initialising).
-                # noinspection PyProtectedMember
-                os._exit(0)
 
 
 if __name__ == "__main__":
