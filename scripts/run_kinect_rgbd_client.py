@@ -55,6 +55,9 @@ def main() -> None:
                         # Otherwise, simply use the identity matrix as a dummy pose.
                         pose = np.eye(4)
 
+                    # Limit the depth range to 3m, since depth from the Kinect is less reliable beyond that.
+                    depth_image = np.where(depth_image <= 3.0, depth_image, 0.0)
+
                     # If a pose is available (i.e. unless we were using the tracker and it failed):
                     if pose is not None:
                         # Send the RGB-D frame across to the server.
