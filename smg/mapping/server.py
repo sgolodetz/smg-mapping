@@ -38,16 +38,9 @@ class Server:
         :param client_id:   TODO
         :param receiver:    TODO
         """
-        # Look up the handler for the client. If the client is no longer active, early out.
-        client_handler = self._get_client_handler(client_id)
-        if client_handler is None:
-            return
-
-        # Pass the first frame on the client's message queue to the frame receiver.
-        receiver(client_handler.get_frame_message_queue().peek())
-
-        # Pop the frame that's just been read from the message queue.
-        client_handler.get_frame_message_queue().pop()
+        client_handler: ClientHandler = self._get_client_handler(client_id)
+        if client_handler is not None:
+            client_handler.get_frame(receiver)
 
     def has_finished(self, client_id: int) -> bool:
         """
@@ -66,13 +59,8 @@ class Server:
         :param client_id:   The ID of the client to check.
         :return:            True, if the client is currently active and ready to yield a frame, or False otherwise.
         """
-        # Look up the handler for the client. If the client is no longer active, early out.
         client_handler: ClientHandler = self._get_client_handler(client_id)
-        if client_handler is None:
-            return False
-
-        # Return whether or not there are currently frames on the client's message queue.
-        return not client_handler.get_frame_message_queue().empty()
+        return client_handler.has_frames_now() if client_handler else False
 
     def has_more_frames(self, client_id: int) -> bool:
         """

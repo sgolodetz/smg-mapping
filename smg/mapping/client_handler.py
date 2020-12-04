@@ -1,10 +1,8 @@
-import cv2
 import numpy as np
 import socket
-import struct
 import threading
 
-from typing import cast, List, Optional, Tuple, TypeVar
+from typing import Callable, cast, List, Optional, Tuple, TypeVar
 
 from smg.mapping import AckMessage, CalibrationMessage, FrameHeaderMessage, FrameMessage, Message, SocketUtil
 from smg.utility import PooledQueue
@@ -36,6 +34,7 @@ class ClientHandler:
         self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage](PooledQueue.PES_DISCARD)
         self.__image_shapes: List[Tuple[int, int, int]] = []
         self.__intrinsics: List[Tuple[float, float, float, float]] = []
+        self.__lock: threading.Lock = threading.Lock()
         self.__should_terminate: threading.Event = should_terminate
         self.__sock: socket.SocketType = sock
         self.__thread: Optional[threading.Thread] = None
@@ -50,13 +49,27 @@ class ClientHandler:
         """
         return self.__client_id
 
-    def get_frame_message_queue(self) -> PooledQueue[FrameMessage]:
+    def get_frame(self, receiver: Callable[[FrameMessage], None]) -> None:
         """
-        Get the queue containing the frame messages received from the client.
+        TODO
 
-        :return:    The queue containing the frame messages received from the client.
+        :param receiver:    TODO
         """
-        return self.__frame_message_queue
+        with self.__lock:
+            # Pass the first frame on the message queue to the frame receiver.
+            receiver(self.__frame_message_queue.peek())
+
+            # Pop the frame that's just been read from the message queue.
+            self.__frame_message_queue.pop()
+
+    def has_frames_now(self) -> bool:
+        """
+        Get whether or not the client is ready to yield a frame.
+
+        :return:    True, if the client is ready to yield a frame, or False otherwise.
+        """
+        with self.__lock:
+            return not self.__frame_message_queue.empty()
 
     def is_connection_ok(self) -> bool:
         """
