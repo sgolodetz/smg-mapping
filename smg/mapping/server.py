@@ -55,7 +55,7 @@ class Server:
         :param client_id:   TODO
         :param receiver:    TODO
         """
-        client_handler: ClientHandler = self._get_client_handler(client_id)
+        client_handler: ClientHandler = self._get_client_handler(client_id, wait_for_start=True)
         if client_handler is not None:
             client_handler.get_frame(receiver)
 
@@ -76,8 +76,8 @@ class Server:
         :param client_id:   The ID of the client to check.
         :return:            True, if the client is currently active and ready to yield a frame, or False otherwise.
         """
-        client_handler: ClientHandler = self._get_client_handler(client_id)
-        return client_handler.has_frames_now() if client_handler else False
+        client_handler: ClientHandler = self._get_client_handler(client_id, wait_for_start=False)
+        return client_handler.has_frames_now() if client_handler is not None else False
 
     def has_more_frames(self, client_id: int) -> bool:
         """
@@ -102,15 +102,13 @@ class Server:
 
     # PROTECTED METHODS
 
-    def _get_client_handler(self, client_id: int) -> Optional[ClientHandler]:
+    def _get_client_handler(self, client_id: int, *, wait_for_start: bool) -> Optional[ClientHandler]:
         """
         Try to get the handler of the active client with the specified ID.
 
-        .. note::
-            If the server is still active and the client has not yet started, this will block.
-
-        :param client_id:   The ID of the client whose handler we want to get.
-        :return:            The client handler, if the client and the server are both active, or None otherwise.
+        :param client_id:       The ID of the client whose handler we want to get.
+        :param wait_for_start:  Whether or not to wait for the client to start, if it hasn't yet.
+        :return:                The client handler, if the client and the server are both active, or None otherwise.
         """
         with self.__lock:
             # Wait until one of the following is true:
@@ -120,7 +118,10 @@ class Server:
             while self.__client_handlers.get(client_id) is None \
                     and client_id not in self.__finished_clients \
                     and not self.__should_terminate.is_set():
-                self.__client_ready.wait(0.1)
+                if wait_for_start:
+                    self.__client_ready.wait(0.1)
+                else:
+                    break
 
             return self.__client_handlers.get(client_id)
 
