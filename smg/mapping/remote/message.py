@@ -10,6 +10,7 @@ class Message(ABC):
     # CONSTRUCTOR
 
     def __init__(self):
+        """Construct a message."""
         self._data: Optional[np.ndarray] = None
 
     # PUBLIC METHODS
@@ -34,10 +35,10 @@ class Message(ABC):
 
     def _data_for(self, segment: Tuple[int, int]) -> np.ndarray:
         """
-        TODO
+        Get the data for the specified message segment.
 
         :param segment:     The segment.
-        :return:            TODO
+        :return:            The data for the segment.
         """
         return self.get_data()[segment[0]:Message._end_of(segment)]
 
