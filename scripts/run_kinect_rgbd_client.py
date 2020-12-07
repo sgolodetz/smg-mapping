@@ -19,6 +19,7 @@ def main() -> None:
     )
     args: dict = vars(parser.parse_args())
 
+    # If requested, construct the tracker.
     tracker: Optional[RGBDTracker] = None
     if args["use_tracker"]:
         tracker = RGBDTracker(
