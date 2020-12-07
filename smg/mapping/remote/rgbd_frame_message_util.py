@@ -16,19 +16,19 @@ class RGBDFrameMessageUtil:
     @staticmethod
     def compress_frame_message(msg: FrameMessage) -> FrameMessage:
         """
-        TODO
+        Compress an uncompressed RGB-D frame message.
 
-        :param msg: TODO
-        :return:    TODO
+        :param msg: The message to compress.
+        :return:    The compressed message.
         """
-        # TODO: Comment here.
+        # Extract the relevant data from the uncompressed frame message.
         frame_idx, rgb_image, depth_image, pose = RGBDFrameMessageUtil.extract_frame_data(msg)
 
-        # TODO: Comment here.
+        # Compress the RGB and depth images.
         compressed_rgb_image: np.ndarray = cv2.imencode(".jpg", rgb_image, [cv2.IMWRITE_JPEG_QUALITY, 90])[1]
         compressed_depth_image: np.ndarray = cv2.imencode(".png", depth_image)[1]
 
-        # TODO: Comment here.
+        # Construct and return the compressed message.
         compressed_msg: FrameMessage = FrameMessage(
             msg.get_image_shapes(), [len(compressed_rgb_image), len(compressed_depth_image)]
         )
@@ -42,17 +42,23 @@ class RGBDFrameMessageUtil:
 
     @staticmethod
     def decompress_frame_message(msg: FrameMessage) -> FrameMessage:
-        # TODO
+        """
+        Decompress a compressed RGB-D frame message.
+
+        :param msg: The message to decompress.
+        :return:    The decompressed message.
+        """
+        # Extract the relevant data from the compressed frame message.
         frame_idx: int = msg.get_frame_index()
         compressed_rgb_image: np.ndarray = msg.get_image_data(0)
         compressed_depth_image: np.ndarray = msg.get_image_data(1)
         pose: np.ndarray = msg.get_pose(0)
 
-        # TODO
+        # Uncompress the RGB and depth images.
         rgb_image: np.ndarray = cv2.imdecode(compressed_rgb_image, cv2.IMREAD_COLOR)
         depth_image: np.ndarray = cv2.imdecode(compressed_depth_image, cv2.IMREAD_ANYDEPTH).astype(np.uint16)
 
-        # TODO
+        # Construct and return the decompressed message.
         decompressed_msg: FrameMessage = FrameMessage(
             msg.get_image_shapes(),
             [rgb_image.nbytes, depth_image.nbytes]
@@ -64,10 +70,10 @@ class RGBDFrameMessageUtil:
     @staticmethod
     def extract_frame_data(msg: FrameMessage) -> Tuple[int, np.ndarray, np.ndarray, np.ndarray]:
         """
-        TODO
+        Extract the relevant data from an uncompressed RGB-D frame message.
 
-        :param msg: TODO
-        :return:    TODO
+        :param msg: The uncompressed RGB-D frame message.
+        :return:    A tuple consisting of the frame index, the RGB image, the depth image and the pose.
         """
         frame_idx: int = msg.get_frame_index()
         rgb_image: np.ndarray = msg.get_image_data(0).reshape(msg.get_image_shapes()[0])
@@ -79,13 +85,13 @@ class RGBDFrameMessageUtil:
     def fill_frame_message(frame_idx: int, rgb_image: np.ndarray, depth_image: np.ndarray, pose: np.ndarray,
                            msg: FrameMessage) -> None:
         """
-        TODO
+        Fill an uncompressed RGB-D frame message with the necessary data.
 
-        :param frame_idx:   TODO
-        :param rgb_image:   TODO
-        :param depth_image: TODO
-        :param pose:        TODO
-        :param msg:         TODO
+        :param frame_idx:   The frame index.
+        :param rgb_image:   The RGB-D image.
+        :param depth_image: The depth image (with dtype np.uint16).
+        :param pose:        The pose.
+        :param msg:         The uncompressed RGB-D frame message.
         """
         msg.set_frame_index(frame_idx)
         msg.set_image_data(0, rgb_image.reshape(-1))
@@ -98,13 +104,14 @@ class RGBDFrameMessageUtil:
                                  rgb_intrinsics: Tuple[float, float, float, float],
                                  depth_intrinsics: Tuple[float, float, float, float]) -> CalibrationMessage:
         """
-        TODO
+        Make a calibration message that specifies the shapes, intrinsics and element byte sizes
+        for an RGB-D image pair.
 
-        :param rgb_image_size:      TODO
-        :param depth_image_size:    TODO
-        :param rgb_intrinsics:      TODO
-        :param depth_intrinsics:    TODO
-        :return:                    TODO
+        :param rgb_image_size:      The size of the RGB images, as a (width, height) tuple.
+        :param depth_image_size:    The size of the depth images, as a (width, height) tuple.
+        :param rgb_intrinsics:      The RGB camera intrinsics.
+        :param depth_intrinsics:    The depth camera intrinsics.
+        :return:                    The calibration message.
         """
         calib_msg: CalibrationMessage = CalibrationMessage()
 
