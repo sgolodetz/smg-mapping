@@ -7,12 +7,12 @@ from .rgbd_frame_util import RGBDFrameUtil
 
 
 class RGBDFrameReceiver:
-    """TODO"""
+    """A receiver of RGB-D frames, used to extract them from frame messages and store them for later use."""
 
     # CONSTRUCTOR
 
     def __init__(self):
-        """TODO"""
+        """Construct an RGB-D frame receiver."""
         self.__rgb_image: Optional[np.ndarray] = None
         self.__depth_image: Optional[np.ndarray] = None
         self.__pose: Optional[np.ndarray] = None
@@ -21,9 +21,12 @@ class RGBDFrameReceiver:
 
     def __call__(self, msg: FrameMessage) -> None:
         """
-        TODO
+        Apply the receiver to a frame message.
 
-        :param msg: TODO
+        .. note::
+            This extracts an RGB-D frame from the frame message and stores it in the receiver.
+
+        :param msg: The frame message.
         """
         self.__frame_idx, self.__rgb_image, self.__depth_image, self.__pose = RGBDFrameUtil.extract_frame_data(msg)
 
@@ -31,24 +34,24 @@ class RGBDFrameReceiver:
 
     def get_depth_image(self) -> np.ndarray:
         """
-        TODO
+        Get the depth image of the RGB-D frame.
 
-        :return:    TODO
+        :return:    The depth image of the RGB-D frame.
         """
         return self.__depth_image
 
     def get_pose(self) -> np.ndarray:
         """
-        TODO
+        Get the pose of the RGB-D frame.
 
-        :return:    TODO
+        :return:    The pose of the RGB-D frame.
         """
         return self.__pose
 
     def get_rgb_image(self) -> np.ndarray:
         """
-        TODO
+        Get the colour image of the RGB-D frame.
 
-        :return:    TODO
+        :return:    The colour image of the RGB-D frame.
         """
         return self.__rgb_image
