@@ -50,11 +50,11 @@ class MappingClient:
     # SPECIAL METHODS
 
     def __enter__(self):
-        """TODO"""
+        """No-op (needed to allow the client's lifetime to be managed by a with statement)."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """TODO"""
+        """Destroy the client at the end of the with statement that's used to manage its lifetime."""
         self.terminate()
 
     # PUBLIC METHODS
@@ -86,9 +86,6 @@ class MappingClient:
             calib_msg.get_image_shapes(), calib_msg.get_uncompressed_image_byte_sizes()
         ))
 
-        # Set up the frame compressor.
-        # TODO
-
         # Start the message sender thread.
         self.__message_sender_thread = threading.Thread(target=self.__run_message_sender)
         self.__message_sender_thread.start()
@@ -99,10 +96,10 @@ class MappingClient:
 
         .. note::
             In order to support different types of frame message, it is imperative that the client doesn't
-            know anything about the contents of the message being sent. We achieve this by making it call
-            a callback function that fills in the contents of the message.
+            know anything about the contents of the messages being sent. We achieve this by making it call
+            a callback function that fills in the contents of a message.
 
-        :param frame_filler:    A callback function that should fill in the contents of the message.
+        :param frame_filler:    A callback function that should fill in the contents of a message.
         """
         with self.__frame_message_queue.begin_push() as push_handler:
             elt: Optional[FrameMessage] = push_handler.get()
