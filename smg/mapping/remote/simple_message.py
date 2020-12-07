@@ -1,8 +1,9 @@
 import numpy as np
-import pytypes
 import struct
 
 from typing import Generic, Optional, TypeVar
+
+from smg.utility import TypeUtil
 
 from .message import Message
 
@@ -24,7 +25,8 @@ class SimpleMessage(Message, Generic[T]):
         Construct a simple message.
 
         .. note::
-            It's not possible to infer t when deriving from SimpleMessage[T]. Subclasses must pass t in explicitly.
+            It's not possible to infer the actual type of T here when this constructor is invoked by a
+            derived constructor. Instead, the derived constructor must pass it in explicitly.
 
         :param value:   An optional initial message value.
         :param t:       The actual type of T (optional in some cases). If None, the class will try to infer it.
@@ -36,14 +38,10 @@ class SimpleMessage(Message, Generic[T]):
         self.__fmt: str = ""
 
         if t is None:
-            # TODO: This should be moved somewhere more central.
-            # Try to get the actual type variable. Note that this is actually quite hard to do in Python, and so
-            # we rely on some magic trickery in the latest version of pytypes, which can be installed via:
-            #
-            # python -m pip install git+https://github.com/sgolodetz/pytypes.git
-            #
-            # Importantly, this doesn't work for subclasses of SimpleMessage, which must pass in t explicitly.
-            t = pytypes.type_util.get_orig_class(self).__args__[0]
+            # Try to get the actual type of T. Note that this approach, which relies on pytypes, won't work when
+            # this constructor is invoked by a derived constructor, so subclasses of SimpleMessage must pass in
+            # the type of T explicitly.
+            t = TypeUtil.get_type_variable(self)
 
         if t is int:
             self.__fmt = "i"

@@ -15,7 +15,6 @@ setup(
     packages=find_packages(include=["smg.mapping", "smg.mapping.*"]),
     include_package_data=True,
     install_requires=[
-        "pytypes @ git+https://github.com/sgolodetz/pytypes.git",
         "smg-pyoctomap",
         "smg-pyremode"
     ],
