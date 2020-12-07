@@ -17,7 +17,7 @@ class FrameHeaderMessage(Message):
         super().__init__()
 
         # The image byte sizes segment consists of a list of integers [bs_1,...], in which bs_i denotes the
-        # overall byte size of image i as stored in the message (e.g. potentially after compression).
+        # overall byte size of image i as stored in the frame message (e.g. potentially after compression).
         self.__image_byte_sizes_fmt: str = "<" + "i" * max_images
 
         # The image shapes segment consists of a list of tuples [(h_1,w_1,ch_1), ...].
@@ -36,9 +36,9 @@ class FrameHeaderMessage(Message):
 
     def get_image_byte_sizes(self) -> List[int]:
         """
-        Get the byte sizes of the images (as stored in the message).
+        Get the byte sizes of the images (as stored in the frame message).
 
-        :return:    The byte sizes of the images (as stored in the message).
+        :return:    The byte sizes of the images (as stored in the frame message).
         """
         return list(struct.unpack_from(self.__image_byte_sizes_fmt, self._data, self.__image_byte_sizes_segment[0]))
 
@@ -57,7 +57,7 @@ class FrameHeaderMessage(Message):
         """
         Copy the byte sizes of the images into the appropriate byte segment in the message.
 
-        :param image_byte_sizes:    The byte sizes of the images (as stored in the message).
+        :param image_byte_sizes:    The byte sizes of the images (as stored in the frame message).
         """
         struct.pack_into(
             self.__image_byte_sizes_fmt, self._data, self.__image_byte_sizes_segment[0], *image_byte_sizes
