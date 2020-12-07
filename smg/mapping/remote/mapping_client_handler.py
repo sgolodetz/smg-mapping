@@ -60,9 +60,15 @@ class MappingClientHandler:
 
     def get_frame(self, receiver: Callable[[FrameMessage], None]) -> None:
         """
-        TODO
+        Get the first frame from the client that has not yet been processed.
 
-        :param receiver:    TODO
+        .. note::
+            The concept of a 'frame receiver' is used to obviate the client handler from needing to know about
+            the contents of frame messages. This way, the frame receiver needs to know how to handle the frame
+            message that it's given, but the client handler can just forward it to the receiver without caring.
+
+        :param receiver:    The frame receiver to which to pass the first frame from the client that has not
+                            yet been processed.
         """
         with self.__lock:
             # Pass the first frame on the message queue to the frame receiver.
@@ -93,39 +99,42 @@ class MappingClientHandler:
         # Try to read a frame header message.
         header_msg: FrameHeaderMessage = FrameHeaderMessage(self.__calib_msg.get_max_images())
         self.__connection_ok = SocketUtil.read_message(self.__sock, header_msg)
+
+        # If that succeeds:
         if self.__connection_ok:
-            # If that succeeds, set up a frame message accordingly.
+            # Set up a frame message accordingly.
             image_shapes: List[Tuple[int, int, int]] = header_msg.get_image_shapes()
             image_byte_sizes: List[int] = header_msg.get_image_byte_sizes()
             frame_msg: FrameMessage = FrameMessage(image_shapes, image_byte_sizes)
 
-            # Now, read the frame message itself.
+            # Try to read the contents of the frame message from the client.
             self.__connection_ok = SocketUtil.read_message(self.__sock, frame_msg)
+
+            # If that succeeds:
             if self.__connection_ok:
-                # TODO: Comment here.
+                # Decompress the frame as necessary.
                 decompressed_frame_msg: FrameMessage = frame_msg
                 if self.__frame_decompressor is not None:
                     decompressed_frame_msg = self.__frame_decompressor(frame_msg)
 
-                # TODO: Comment here.
+                # Push the decompressed frame onto the message queue.
                 with self.__frame_message_queue.begin_push() as push_handler:
                     elt: Optional[FrameMessage] = push_handler.get()
                     if elt is not None:
                         msg: FrameMessage = cast(FrameMessage, elt)
                         np.copyto(msg.get_data(), decompressed_frame_msg.get_data())
 
-                # TODO: Comment here.
+                # Send an acknowledgement to the client.
                 self.__connection_ok = SocketUtil.write_message(self.__sock, AckMessage())
 
     def run_post(self) -> None:
         """Run any code that should happen after the main loop for the client."""
-        # Destroy the frame compressor prior to stopping the client handler.
-        # TODO
+        # This is currently a no-op.
         pass
 
     def run_pre(self) -> None:
         """Run any code that should happen before the main loop for the client."""
-        # Read a calibration message from the client to get its camera intrinsics.
+        # Read a calibration message from the client.
         self.__calib_msg = CalibrationMessage()
         self.__connection_ok = SocketUtil.read_message(self.__sock, self.__calib_msg)
 
@@ -145,12 +154,6 @@ class MappingClientHandler:
             self.__frame_message_queue.initialise(capacity, lambda: FrameMessage(
                 self.__calib_msg.get_image_shapes(), self.__calib_msg.get_uncompressed_image_byte_sizes()
             ))
-
-            # Set up the frame compressor.
-            # TODO
-
-            # Construct a dummy frame message to consume messages that cannot be pushed onto the queue.
-            # TODO
 
             # Signal to the client that the server is ready.
             self.__connection_ok = SocketUtil.write_message(self.__sock, AckMessage())
