@@ -41,8 +41,6 @@ class MappingClientHandler:
         self.__connection_ok: bool = True
         self.__frame_decompressor: Optional[Callable[[FrameMessage], FrameMessage]] = frame_decompressor
         self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage](PooledQueue.PES_DISCARD)
-        self.__image_shapes: List[Tuple[int, int, int]] = []
-        self.__intrinsics: List[Tuple[float, float, float, float]] = []
         self.__lock: threading.Lock = threading.Lock()
         self.__should_terminate: threading.Event = should_terminate
         self.__sock: socket.SocketType = sock
@@ -76,6 +74,15 @@ class MappingClientHandler:
 
             # Pop the frame that's just been read from the message queue.
             self.__frame_message_queue.pop()
+
+    def get_intrinsics(self) -> Optional[List[Tuple[float, float, float, float]]]:
+        """
+        Try to get the intrinsics of the different cameras being used.
+
+        :return:    The intrinsics of the different cameras being used, as (fx, fy, cx, cy) tuples,
+                    if a calibration message has been received from the client, or None otherwise.
+        """
+        return self.__calib_msg.get_intrinsics() if self.__calib_msg is not None else None
 
     def has_frames_now(self) -> bool:
         """
@@ -140,13 +147,11 @@ class MappingClientHandler:
 
         # If the calibration message was successfully read:
         if self.__connection_ok:
-            # Save the camera parameters.
-            self.__image_shapes = self.__calib_msg.get_image_shapes()
-            self.__intrinsics = self.__calib_msg.get_intrinsics()
-
             # Print the camera parameters out for debugging purposes.
+            image_shapes: List[Tuple[int, int, int]] = self.__calib_msg.get_image_shapes()
+            intrinsics: List[Tuple[float, float, float, float]] = self.__calib_msg.get_intrinsics()
             print(
-                f"Received camera parameters from client {self.__client_id}: {self.__image_shapes}, {self.__intrinsics}"
+                f"Received camera parameters from client {self.__client_id}: {image_shapes}, {intrinsics}"
             )
 
             # Initialise the frame message queue.

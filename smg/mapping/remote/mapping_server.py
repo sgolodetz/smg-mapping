@@ -4,23 +4,23 @@ import socket
 import threading
 
 from select import select
-from typing import Callable, Dict, Optional, Set
+from typing import Callable, Dict, Optional, List, Set, Tuple
 
 from .mapping_client_handler import MappingClientHandler
 from .frame_message import FrameMessage
 
 
 class MappingServer:
-    """TODO"""
+    """A server that can be used to communicate with remote mapping clients."""
 
     # CONSTRUCTOR
 
     def __init__(self, port: int = 7851, *,
                  frame_decompressor: Optional[Callable[[FrameMessage], FrameMessage]] = None):
         """
-        TODO
+        Construct a mapping server.
 
-        :param port:                TODO
+        :param port:                The port on which the server should listen for connections.
         :param frame_decompressor:  An optional function to use to decompress received frames.
         """
         self.__client_handlers: Dict[int, MappingClientHandler] = {}
@@ -43,25 +43,43 @@ class MappingServer:
     # SPECIAL METHODS
 
     def __enter__(self):
-        """TODO"""
+        """No-op (needed to allow the server's lifetime to be managed by a with statement)."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """TODO"""
+        """Destroy the server at the end of the with statement that's used to manage its lifetime."""
         self.terminate()
 
     # PUBLIC METHODS
 
     def get_frame(self, client_id: int, receiver: Callable[[FrameMessage], None]) -> None:
         """
-        TODO
+        Get the first frame from the specified client that has not yet been processed.
 
-        :param client_id:   TODO
-        :param receiver:    TODO
+        .. note::
+            The concept of a 'frame receiver' is used to obviate the server from needing to know about the contents
+            of frame messages. This way, the frame receiver needs to know how to handle the frame message that it's
+            given, but the server can just forward it to the receiver without caring.
+
+        :param client_id:   The ID of the client.
+        :param receiver:    The frame receiver to which to pass the first frame from the client that has not
+                            yet been processed.
         """
         client_handler: MappingClientHandler = self._get_client_handler(client_id, wait_for_start=True)
         if client_handler is not None:
             client_handler.get_frame(receiver)
+
+    def get_intrinsics(self, client_id: int) -> Optional[List[Tuple[float, float, float, float]]]:
+        """
+        Try to get the intrinsics of the different cameras being used by the specified client.
+
+        :param client_id:   The ID of the client.
+        :return:            The intrinsics of the different cameras being used by the specified client
+                            as a list of (fx,fy,cx,cy) tuples, if the client is active and a calibration
+                            message has been received from it, or None otherwise.
+        """
+        client_handler: MappingClientHandler = self._get_client_handler(client_id, wait_for_start=True)
+        return client_handler.get_intrinsics() if client_handler is not None else None
 
     def has_finished(self, client_id: int) -> bool:
         """
