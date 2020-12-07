@@ -111,6 +111,6 @@ class RGBDFrameUtil:
         # noinspection PyTypeChecker
         calib_msg.set_image_shapes([rgb_image_size[::-1] + (3,), depth_image_size[::-1] + (1,)])
         calib_msg.set_intrinsics([rgb_intrinsics, depth_intrinsics])
-        calib_msg.set_pixel_byte_sizes([struct.calcsize("<B"), struct.calcsize("<H")])
+        calib_msg.set_element_byte_sizes([struct.calcsize("<B"), struct.calcsize("<H")])
 
         return calib_msg
