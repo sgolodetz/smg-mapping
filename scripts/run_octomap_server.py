@@ -35,7 +35,7 @@ def main() -> None:
     with MappingServer(frame_decompressor=RGBDFrameMessageUtil.decompress_frame_message) as server:
         client_id: int = 0
         intrinsics: Optional[Tuple[float, float, float, float]] = None
-        pose: np.ndarray = np.eye(4)
+        pose: Optional[np.ndarray] = None
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
 
         # Start the server.
@@ -47,7 +47,7 @@ def main() -> None:
                 # If the user wants to quit:
                 if event.type == pygame.QUIT:
                     # If the reconstruction process has actually started:
-                    if intrinsics is not None:
+                    if pose is not None:
                         # Save the current octree to disk.
                         print("Saving octree to remote_fusion.bt")
                         tree.write_binary("remote_fusion.bt")
@@ -82,8 +82,8 @@ def main() -> None:
             glClearColor(1.0, 1.0, 1.0, 1.0)
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
-            # Once the camera intrinsics are available:
-            if intrinsics is not None:
+            # Once the pose is available:
+            if pose is not None:
                 # Set the projection matrix.
                 glMatrixMode(GL_PROJECTION)
                 OctomapUtil.set_projection_matrix(intrinsics, *window_size)
