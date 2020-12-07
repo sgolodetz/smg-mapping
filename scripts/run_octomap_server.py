@@ -8,7 +8,7 @@ from OpenGL.GL import *
 from timeit import default_timer as timer
 from typing import Tuple
 
-from smg.mapping.remote import MappingServer, RGBDFrameReceiver, RGBDFrameUtil
+from smg.mapping.remote import MappingServer, RGBDFrameMessageUtil, RGBDFrameReceiver
 from smg.pyoctomap import *
 from smg.utility import ImageUtil
 
@@ -37,7 +37,7 @@ def main() -> None:
     voxel_size: float = 0.05
     tree: OcTree = OcTree(voxel_size)
 
-    with MappingServer(frame_decompressor=RGBDFrameUtil.decompress_frame_message) as server:
+    with MappingServer(frame_decompressor=RGBDFrameMessageUtil.decompress_frame_message) as server:
         server.start()
 
         client_id: int = 0

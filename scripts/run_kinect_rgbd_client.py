@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 from typing import Optional
 
 from smg.openni import OpenNICamera
-from smg.mapping.remote import MappingClient, RGBDFrameUtil
+from smg.mapping.remote import MappingClient, RGBDFrameMessageUtil
 from smg.pyorbslam2 import RGBDTracker
 from smg.utility import ImageUtil
 
@@ -28,9 +28,9 @@ def main() -> None:
 
     try:
         with OpenNICamera(mirror_images=True) as camera:
-            with MappingClient(frame_compressor=RGBDFrameUtil.compress_frame_message) as client:
+            with MappingClient(frame_compressor=RGBDFrameMessageUtil.compress_frame_message) as client:
                 # Send a calibration message to tell the server the camera parameters.
-                client.send_calibration_message(RGBDFrameUtil.make_calibration_message(
+                client.send_calibration_message(RGBDFrameMessageUtil.make_calibration_message(
                     camera.get_colour_size(), camera.get_depth_size(),
                     camera.get_colour_intrinsics(), camera.get_depth_intrinsics()
                 ))
@@ -61,7 +61,7 @@ def main() -> None:
                     # If a pose is available (i.e. unless we were using the tracker and it failed):
                     if pose is not None:
                         # Send the RGB-D frame across to the server.
-                        client.send_frame_message(lambda msg: RGBDFrameUtil.fill_frame_message(
+                        client.send_frame_message(lambda msg: RGBDFrameMessageUtil.fill_frame_message(
                             frame_idx, rgb_image, ImageUtil.to_short_depth(depth_image), pose, msg
                         ))
 

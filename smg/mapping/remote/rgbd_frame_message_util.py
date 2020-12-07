@@ -8,8 +8,8 @@ from .calibration_message import CalibrationMessage
 from .frame_message import FrameMessage
 
 
-class RGBDFrameUtil:
-    """TODO"""
+class RGBDFrameMessageUtil:
+    """Utility functions related to RGB-D frame messages."""
 
     # PUBLIC STATIC METHODS
 
@@ -22,7 +22,7 @@ class RGBDFrameUtil:
         :return:    TODO
         """
         # TODO: Comment here.
-        frame_idx, rgb_image, depth_image, pose = RGBDFrameUtil.extract_frame_data(msg)
+        frame_idx, rgb_image, depth_image, pose = RGBDFrameMessageUtil.extract_frame_data(msg)
 
         # TODO: Comment here.
         compressed_rgb_image: np.ndarray = cv2.imencode(".jpg", rgb_image, [cv2.IMWRITE_JPEG_QUALITY, 90])[1]
@@ -57,7 +57,7 @@ class RGBDFrameUtil:
             msg.get_image_shapes(),
             [rgb_image.nbytes, depth_image.nbytes]
         )
-        RGBDFrameUtil.fill_frame_message(frame_idx, rgb_image, depth_image, pose, decompressed_msg)
+        RGBDFrameMessageUtil.fill_frame_message(frame_idx, rgb_image, depth_image, pose, decompressed_msg)
 
         return decompressed_msg
 

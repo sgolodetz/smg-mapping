@@ -7,8 +7,8 @@ from .ack_message import AckMessage
 
 from .socket_util import SocketUtil
 
+from .rgbd_frame_message_util import RGBDFrameMessageUtil
 from .rgbd_frame_receiver import RGBDFrameReceiver
-from .rgbd_frame_util import RGBDFrameUtil
 
 from .mapping_client import MappingClient
 from .mapping_client_handler import MappingClientHandler

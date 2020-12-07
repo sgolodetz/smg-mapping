@@ -3,7 +3,7 @@ import numpy as np
 from typing import Optional
 
 from .frame_message import FrameMessage
-from .rgbd_frame_util import RGBDFrameUtil
+from .rgbd_frame_message_util import RGBDFrameMessageUtil
 
 
 class RGBDFrameReceiver:
@@ -28,7 +28,8 @@ class RGBDFrameReceiver:
 
         :param msg: The frame message.
         """
-        self.__frame_idx, self.__rgb_image, self.__depth_image, self.__pose = RGBDFrameUtil.extract_frame_data(msg)
+        self.__frame_idx, self.__rgb_image, self.__depth_image, self.__pose = \
+            RGBDFrameMessageUtil.extract_frame_data(msg)
 
     # PUBLIC METHODS
 

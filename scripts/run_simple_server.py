@@ -1,10 +1,10 @@
 import cv2
 
-from smg.mapping.remote import MappingServer, RGBDFrameReceiver, RGBDFrameUtil
+from smg.mapping.remote import MappingServer, RGBDFrameMessageUtil, RGBDFrameReceiver
 
 
 def main() -> None:
-    with MappingServer(frame_decompressor=RGBDFrameUtil.decompress_frame_message) as server:
+    with MappingServer(frame_decompressor=RGBDFrameMessageUtil.decompress_frame_message) as server:
         server.start()
 
         client_id: int = 0
