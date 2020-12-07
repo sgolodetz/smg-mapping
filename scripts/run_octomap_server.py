@@ -6,7 +6,7 @@ import pygame
 
 from OpenGL.GL import *
 from timeit import default_timer as timer
-from typing import Tuple
+from typing import Optional, Tuple
 
 from smg.mapping.remote import MappingServer, RGBDFrameMessageUtil, RGBDFrameReceiver
 from smg.pyoctomap import *
@@ -19,11 +19,6 @@ def main() -> None:
     window_size: Tuple[int, int] = (640, 480)
     pygame.display.set_mode(window_size, pygame.DOUBLEBUF | pygame.OPENGL)
     pygame.display.set_caption("Octomap Server")
-
-    # Set the projection matrix.
-    glMatrixMode(GL_PROJECTION)
-    intrinsics: Tuple[float, float, float, float] = (532.5694641250893, 531.5410880910171, 320.0, 240.0)
-    OctomapUtil.set_projection_matrix(intrinsics, *window_size)
 
     # Enable the z-buffer.
     glEnable(GL_DEPTH_TEST)
@@ -38,23 +33,36 @@ def main() -> None:
     tree: OcTree = OcTree(voxel_size)
 
     with MappingServer(frame_decompressor=RGBDFrameMessageUtil.decompress_frame_message) as server:
-        server.start()
-
         client_id: int = 0
+        intrinsics: Optional[Tuple[float, float, float, float]] = None
         pose: np.ndarray = np.eye(4)
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
+
+        # Start the server.
+        server.start()
 
         while True:
             # Process any PyGame events.
             for event in pygame.event.get():
+                # If the user wants to quit:
                 if event.type == pygame.QUIT:
-                    tree.write_binary("remote_fusion.bt")
+                    # If the reconstruction process has actually started:
+                    if intrinsics is not None:
+                        # Save the current octree to disk.
+                        print("Saving octree to remote_fusion.bt")
+                        tree.write_binary("remote_fusion.bt")
+
+                    # Shut down pygame, and forcibly exit the program.
                     pygame.quit()
                     # noinspection PyProtectedMember
                     os._exit(0)
 
+            # If the server has an RGB-D frame from the client that has not yet been processed:
             if server.has_frames_now(client_id):
-                # Get an RGB-D frame from the server.
+                # Get the camera intrinsics from the server.
+                intrinsics = server.get_intrinsics(client_id)[0]
+
+                # Get the frame from the server.
                 server.get_frame(client_id, receiver)
                 pose = receiver.get_pose()
 
@@ -74,8 +82,14 @@ def main() -> None:
             glClearColor(1.0, 1.0, 1.0, 1.0)
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
-            # Draw the octree.
-            OctomapUtil.draw_octree(tree, pose, drawer)
+            # Once the camera intrinsics are available:
+            if intrinsics is not None:
+                # Set the projection matrix.
+                glMatrixMode(GL_PROJECTION)
+                OctomapUtil.set_projection_matrix(intrinsics, *window_size)
+
+                # Draw the octree.
+                OctomapUtil.draw_octree(tree, pose, drawer)
 
             # Swap the front and back buffers.
             pygame.display.flip()
