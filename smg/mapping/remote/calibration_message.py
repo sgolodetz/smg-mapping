@@ -83,7 +83,7 @@ class CalibrationMessage(Message):
         .. note::
             These are calculated from the image shapes and element byte sizes.
 
-        :return:    The (unocmpressed byte sizes of the images).
+        :return:    The (unocmpressed) byte sizes of the images.
         """
         image_shapes: List[Tuple[int, int, int]] = self.get_image_shapes()
         element_byte_sizes: List[int] = list(

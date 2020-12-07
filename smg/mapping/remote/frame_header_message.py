@@ -16,7 +16,11 @@ class FrameHeaderMessage(Message):
         """Construct a frame header message."""
         super().__init__()
 
+        # The image byte sizes segment consists of a list of integers [bs_1,...], in which bs_i denotes the
+        # overall byte size of image i as stored in the message (e.g. potentially after compression).
         self.__image_byte_sizes_fmt: str = "<" + "i" * max_images
+
+        # The image shapes segment consists of a list of tuples [(h_1,w_1,ch_1), ...].
         self.__image_shapes_fmt: str = "<" + "iii" * max_images
 
         self.__image_byte_sizes_segment: Tuple[int, int] = (
@@ -32,17 +36,17 @@ class FrameHeaderMessage(Message):
 
     def get_image_byte_sizes(self) -> List[int]:
         """
-        TODO
+        Get the byte sizes of the images (as stored in the message).
 
-        :return:    TODO
+        :return:    The byte sizes of the images (as stored in the message).
         """
         return list(struct.unpack_from(self.__image_byte_sizes_fmt, self._data, self.__image_byte_sizes_segment[0]))
 
     def get_image_shapes(self) -> List[Tuple[int, int, int]]:
         """
-        TODO
+        Get the image shapes from the message.
 
-        :return:    TODO
+        :return:    The image shapes.
         """
         flat: List[int] = struct.unpack_from(
             self.__image_shapes_fmt, self._data, self.__image_shapes_segment[0]
@@ -51,9 +55,9 @@ class FrameHeaderMessage(Message):
 
     def set_image_byte_sizes(self, image_byte_sizes: List[int]) -> None:
         """
-        TODO
+        Copy the byte sizes of the images into the appropriate byte segment in the message.
 
-        :param image_byte_sizes:    TODO
+        :param image_byte_sizes:    The byte sizes of the images (as stored in the message).
         """
         struct.pack_into(
             self.__image_byte_sizes_fmt, self._data, self.__image_byte_sizes_segment[0], *image_byte_sizes
@@ -61,9 +65,9 @@ class FrameHeaderMessage(Message):
 
     def set_image_shapes(self, image_shapes: List[Tuple[int, int, int]]) -> None:
         """
-        TODO
+        Copy the image shapes into the appropriate byte segment in the message.
 
-        :param image_shapes:    TODO
+        :param image_shapes:    The image shapes.
         """
         struct.pack_into(
             self.__image_shapes_fmt, self._data, self.__image_shapes_segment[0], *chain(*image_shapes)
