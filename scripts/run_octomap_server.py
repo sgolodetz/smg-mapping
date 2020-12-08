@@ -10,6 +10,9 @@ from typing import Optional, Tuple
 
 from smg.mapping.remote import MappingServer, RGBDFrameMessageUtil, RGBDFrameReceiver
 from smg.pyoctomap import *
+from smg.rigging.cameras import SimpleCamera
+from smg.rigging.controllers import KeyboardCameraController
+from smg.rigging.helpers import CameraPoseConverter
 from smg.utility import ImageUtil
 
 
@@ -31,6 +34,13 @@ def main() -> None:
     # Create the octree.
     voxel_size: float = 0.05
     tree: OcTree = OcTree(voxel_size)
+
+    # Construct the camera controller.
+    up: np.ndarray = np.array([0, -1, 0])
+    primary_camera: SimpleCamera = SimpleCamera([0, 0, 0], [0, 0, 1], up)
+    control_camera: KeyboardCameraController = KeyboardCameraController(
+        primary_camera, up, canonical_angular_speed=0.05, canonical_linear_speed=0.1
+    )
 
     with MappingServer(frame_decompressor=RGBDFrameMessageUtil.decompress_frame_message) as server:
         client_id: int = 0
@@ -78,6 +88,9 @@ def main() -> None:
                 end = timer()
                 print(f"  - Time: {end - start}s")
 
+            # Allow the user to control the camera.
+            control_camera(pygame.key.get_pressed(), timer() * 1000)
+
             # Clear the colour and depth buffers.
             glClearColor(1.0, 1.0, 1.0, 1.0)
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -89,7 +102,8 @@ def main() -> None:
                 OctomapUtil.set_projection_matrix(intrinsics, *window_size)
 
                 # Draw the octree.
-                OctomapUtil.draw_octree(tree, pose, drawer)
+                # OctomapUtil.draw_octree(tree, np.linalg.inv(pose), drawer)
+                OctomapUtil.draw_octree(tree, CameraPoseConverter.camera_to_pose(primary_camera), drawer)
 
             # Swap the front and back buffers.
             pygame.display.flip()
