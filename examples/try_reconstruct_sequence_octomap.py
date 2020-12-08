@@ -72,7 +72,7 @@ def main():
         frame_idx += 1
 
     # Save the finished octree to disk.
-    tree.write_binary("kinect_05.bt")
+    tree.write_binary("kinect_025.bt")
 
 
 if __name__ == "__main__":
