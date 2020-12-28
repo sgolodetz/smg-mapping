@@ -9,6 +9,7 @@ from timeit import default_timer as timer
 from typing import Optional, Tuple
 
 from smg.mapping.remote import MappingServer, RGBDFrameMessageUtil, RGBDFrameReceiver
+from smg.opengl import OpenGLUtil
 from smg.pyoctomap import *
 from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
@@ -96,7 +97,7 @@ def main() -> None:
             if pose is not None:
                 # Set the projection matrix.
                 glMatrixMode(GL_PROJECTION)
-                OctomapUtil.set_projection_matrix(intrinsics, *window_size)
+                OpenGLUtil.set_projection_matrix(intrinsics, *window_size)
 
                 # Draw the octree.
                 # OctomapUtil.draw_octree(tree, np.linalg.inv(pose), drawer)
