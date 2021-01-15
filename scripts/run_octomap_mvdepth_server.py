@@ -11,7 +11,7 @@ from timeit import default_timer as timer
 from typing import List, Optional, Tuple
 
 from smg.mapping.remote import MappingServer, RGBDFrameMessageUtil, RGBDFrameReceiver
-from smg.mvdepthnet import MVDepthEstimator
+from smg.mvdepthnet import MultiviewDepthEstimator
 from smg.opengl import OpenGLUtil
 from smg.pyoctomap import *
 from smg.rigging.cameras import SimpleCamera
@@ -56,7 +56,7 @@ def main() -> None:
 
     with MappingServer(frame_decompressor=RGBDFrameMessageUtil.decompress_frame_message) as server:
         client_id: int = 0
-        depth_estimator: Optional[MVDepthEstimator] = None
+        depth_estimator: Optional[MultiviewDepthEstimator] = None
         keyframes: List[Tuple[np.ndarray, np.ndarray]] = []
         intrinsics: Optional[Tuple[float, float, float, float]] = None
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
@@ -97,7 +97,7 @@ def main() -> None:
 
                 # If the depth estimator hasn't been constructed yet, construct it now.
                 if depth_estimator is None:
-                    depth_estimator = MVDepthEstimator(
+                    depth_estimator = MultiviewDepthEstimator(
                         "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar",
                         GeometryUtil.intrinsics_to_matrix(intrinsics)
                     )

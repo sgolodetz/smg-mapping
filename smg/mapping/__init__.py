@@ -1,2 +1,2 @@
-from .monocular_remode_mapper import MonocularRemodeMapper
-from .rgbd_remode_mapper import RGBDRemodeMapper
+from .monocular_remode_mapping_system import MonocularRemodeMappingSystem
+from .rgbd_remode_mapping_system import RGBDRemodeMappingSystem
