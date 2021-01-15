@@ -7,37 +7,37 @@ import threading
 
 from typing import Optional
 
-from smg.imagesources import RGBDImageSource
+from smg.imagesources import RGBImageSource
 from smg.open3d import ReconstructionUtil
-from smg.pyorbslam2 import RGBDTracker
+from smg.pyorbslam2 import MonocularTracker
 from smg.pyremode import CONVERGED, DepthEstimator
 from smg.utility import ImageUtil, PoseUtil
 
 
-class RGBDMappingSystem:
+class MonocularRemodeMapper:
     """
-    A REMODE-based multi-view mapping system that uses an RGB-D tracker to estimate metric camera poses,
+    A REMODE-based multi-view mapping system that uses a monocular tracker to estimate the camera poses,
     and fuses keyframes into an Open3D TSDF.
     """
 
     # CONSTRUCTOR
 
-    def __init__(self, image_source: RGBDImageSource, tracker: RGBDTracker, depth_estimator: DepthEstimator, *,
+    def __init__(self, image_source: RGBImageSource, tracker: MonocularTracker, depth_estimator: DepthEstimator, *,
                  output_dir: Optional[str] = None):
         """
-        Construct an RGB-D mapping system.
+        Construct a REMODE-based monocular mapping system.
 
-        :param image_source:    A source of RGB-D images.
-        :param tracker:         The RGB-D tracker to use.
+        :param image_source:    A source of RGB images.
+        :param tracker:         The monocular tracker to use.
         :param depth_estimator: The depth estimator to use.
         :param output_dir:      An optional directory into which to save the sequence of RGB-D keyframes
                                 so that they can be reconstructed again (or otherwise processed) later.
         """
         self.__depth_estimator: DepthEstimator = depth_estimator
-        self.__image_source: RGBDImageSource = image_source
+        self.__image_source: RGBImageSource = image_source
         self.__output_dir: Optional[str] = output_dir
         self.__should_terminate: bool = False
-        self.__tracker: RGBDTracker = tracker
+        self.__tracker: MonocularTracker = tracker
 
         self.__tsdf: o3d.pipelines.integration.ScalableTSDFVolume = o3d.pipelines.integration.ScalableTSDFVolume(
             voxel_length=0.01,
@@ -70,10 +70,10 @@ class RGBDMappingSystem:
 
         # Until the mapping system should terminate:
         while not self.__should_terminate:
-            # Get the latest images from the image source.
-            colour_image, depth_image = self.__image_source.get_images()
+            # Get the latest image from the image source.
+            colour_image = self.__image_source.get_image()
 
-            # Show the colour image so that the user can see what's going on. If the user presses 'q',
+            # Show the image so that the user can see what's going on. If the user presses 'q',
             # tell the mapping system to terminate, and early out.
             cv2.imshow("Tracking Image", colour_image)
             c: int = cv2.waitKey(1)
@@ -83,7 +83,7 @@ class RGBDMappingSystem:
             # If the tracker's ready:
             if self.__tracker.is_ready():
                 # Try to estimate the pose of the camera.
-                pose: Optional[np.ndarray] = self.__tracker.estimate_pose(colour_image, depth_image)
+                pose: Optional[np.ndarray] = self.__tracker.estimate_pose(colour_image)
 
                 # If this succeeds, pass the colour image and pose to the depth estimator.
                 if pose is not None:
@@ -116,8 +116,8 @@ class RGBDMappingSystem:
 
     def __run_mapping(self) -> None:
         """Make a map of the scene based on the keyframes yielded by the depth estimator."""
-        width, height = self.__image_source.get_colour_size()
-        fx, fy, cx, cy = self.__image_source.get_colour_intrinsics()
+        width, height = self.__image_source.get_image_size()
+        fx, fy, cx, cy = self.__image_source.get_intrinsics()
         intrinsics: o3d.camera.PinholeCameraIntrinsic = o3d.camera.PinholeCameraIntrinsic(width, height, fx, fy, cx, cy)
 
         keyframe_idx: int = 0
