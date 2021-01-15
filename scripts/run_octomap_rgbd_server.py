@@ -74,7 +74,7 @@ def main() -> None:
                     # noinspection PyProtectedMember
                     os._exit(0)
 
-            # If the server has an RGB-D frame from the client that has not yet been processed:
+            # If the server has a frame from the client that has not yet been processed:
             if server.has_frames_now(client_id):
                 # Get the camera intrinsics from the server.
                 intrinsics = server.get_intrinsics(client_id)[0]
