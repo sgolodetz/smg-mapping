@@ -30,7 +30,7 @@ def main() -> None:
     pygame.init()
     window_size: Tuple[int, int] = (640, 480)
     pygame.display.set_mode(window_size, pygame.DOUBLEBUF | pygame.OPENGL)
-    pygame.display.set_caption("Octomap Server")
+    pygame.display.set_caption("Octomap RGB-D Server")
 
     # Enable the z-buffer.
     glEnable(GL_DEPTH_TEST)
@@ -66,8 +66,8 @@ def main() -> None:
                     # If the reconstruction process has actually started:
                     if pose is not None:
                         # Save the current octree to disk.
-                        print("Saving octree to remote_fusion.bt")
-                        tree.write_binary("remote_fusion.bt")
+                        print("Saving octree to remote_fusion_rgbd.bt")
+                        tree.write_binary("remote_fusion_rgbd.bt")
 
                     # Shut down pygame, and forcibly exit the program.
                     pygame.quit()

@@ -23,7 +23,7 @@ def main() -> None:
     tracker: Optional[RGBDTracker] = None
     if args["use_tracker"]:
         tracker = RGBDTracker(
-            settings_file=f"settings-kinect.yaml", use_viewer=True,
+            settings_file=f"settings-kinect.yaml", use_viewer=False,
             voc_file="C:/orbslam2/Vocabulary/ORBvoc.txt", wait_till_ready=False
         )
 
