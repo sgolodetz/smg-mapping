@@ -4,6 +4,7 @@ import os
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame
 
+from argparse import ArgumentParser
 from OpenGL.GL import *
 from timeit import default_timer as timer
 from typing import Optional, Tuple
@@ -17,6 +18,14 @@ from smg.utility import ImageUtil
 
 
 def main() -> None:
+    # Parse any command-line arguments.
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--camera_mode", "-m", type=str, choices=("follow", "free"), default="free",
+        help="the camera mode"
+    )
+    args: dict = vars(parser.parse_args())
+
     # Initialise PyGame and create the window.
     pygame.init()
     window_size: Tuple[int, int] = (640, 480)
@@ -100,8 +109,10 @@ def main() -> None:
                 OpenGLUtil.set_projection_matrix(intrinsics, *window_size)
 
                 # Draw the octree.
-                # OctomapUtil.draw_octree(tree, np.linalg.inv(pose), drawer)
-                OctomapUtil.draw_octree(tree, camera_controller.get_pose(), drawer)
+                viewing_pose: np.ndarray = \
+                    np.linalg.inv(pose) if args["camera_mode"] == "follow" \
+                    else camera_controller.get_pose()
+                OctomapUtil.draw_octree(tree, viewing_pose, drawer)
 
             # Swap the front and back buffers.
             pygame.display.flip()
