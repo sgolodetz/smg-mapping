@@ -15,13 +15,13 @@ def main() -> None:
     # Parse any command-line arguments.
     parser = ArgumentParser()
     parser.add_argument(
-        "--use_tracker", action="store_true", help="whether to use the tracker"
+        "--suppress_tracker", action="store_true", help="whether to suppress the tracker"
     )
     args: dict = vars(parser.parse_args())
 
     # If requested, construct the tracker.
     tracker: Optional[RGBDTracker] = None
-    if args["use_tracker"]:
+    if not args["suppress_tracker"]:
         tracker = RGBDTracker(
             settings_file=f"settings-kinect.yaml", use_viewer=False,
             voc_file="C:/orbslam2/Vocabulary/ORBvoc.txt", wait_till_ready=False
