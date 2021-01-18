@@ -52,6 +52,7 @@ def main() -> None:
         SimpleCamera([0, 0, 0], [0, 0, 1], [0, -1, 0]), canonical_angular_speed=0.05, canonical_linear_speed=0.1
     )
 
+    # Construct the mapping server.
     with MappingServer(frame_decompressor=RGBDFrameMessageUtil.decompress_frame_message) as server:
         client_id: int = 0
         depth_estimator: Optional[MonocularDepthEstimator] = None
@@ -95,14 +96,14 @@ def main() -> None:
                         GeometryUtil.intrinsics_to_matrix(intrinsics)
                     )
 
-                # TODO: Comment here.
+                # Try to estimate a depth image for the frame.
                 estimated_depth_image: Optional[np.ndarray] = depth_estimator.estimate_depth(
                     colour_image, tracker_w_t_c
                 )
 
-                # TODO: Comment here.
+                # If a depth image was successfully estimated:
                 if estimated_depth_image is not None:
-                    # TODO
+                    # Limit its range to 3m (more distant points can be unreliable).
                     estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
 
                     # Use the depth image and pose to make an Octomap point cloud.
