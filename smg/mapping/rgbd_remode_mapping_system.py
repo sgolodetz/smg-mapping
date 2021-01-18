@@ -73,11 +73,11 @@ class RGBDRemodeMappingSystem:
             # Get the latest images from the image source.
             colour_image, depth_image = self.__image_source.get_images()
 
-            # Show the colour image so that the user can see what's going on. If the user presses 'q',
+            # Show the colour image so that the user can see what's going on. If the user presses 'v',
             # tell the mapping system to terminate, and early out.
             cv2.imshow("Tracking Image", colour_image)
             c: int = cv2.waitKey(1)
-            if c == ord('q'):
+            if c == ord('v'):
                 return self.terminate()
 
             # If the tracker's ready:
