@@ -111,8 +111,10 @@ def main() -> None:
 
                     # Fuse the point cloud into the octree.
                     start = timer()
+
                     origin: Vector3 = Vector3(0.0, 0.0, 0.0)
                     tree.insert_point_cloud(pcd, origin, discretize=True)
+
                     end = timer()
                     print(f"  - Time: {end - start}s")
 
