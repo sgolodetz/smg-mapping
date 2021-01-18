@@ -14,7 +14,7 @@ from smg.pyremode import CONVERGED, DepthEstimator
 from smg.utility import ImageUtil, PoseUtil
 
 
-class RGBDMappingSystem:
+class RGBDRemodeMappingSystem:
     """
     A REMODE-based multi-view mapping system that uses an RGB-D tracker to estimate metric camera poses,
     and fuses keyframes into an Open3D TSDF.
@@ -25,7 +25,7 @@ class RGBDMappingSystem:
     def __init__(self, image_source: RGBDImageSource, tracker: RGBDTracker, depth_estimator: DepthEstimator, *,
                  output_dir: Optional[str] = None):
         """
-        Construct an RGB-D mapping system.
+        Construct a REMODE-based RGB-D mapping system.
 
         :param image_source:    A source of RGB-D images.
         :param tracker:         The RGB-D tracker to use.

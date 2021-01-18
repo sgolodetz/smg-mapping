@@ -5,7 +5,7 @@ import os
 from argparse import ArgumentParser
 from typing import Optional
 
-from smg.mapping import RGBDMappingSystem
+from smg.mapping import RGBDRemodeMappingSystem
 from smg.open3d import ReconstructionUtil, VisualisationUtil
 from smg.openni import OpenNICamera, OpenNIRGBDImageSource
 from smg.pyorbslam2 import RGBDTracker
@@ -33,10 +33,10 @@ def main():
                 camera.get_colour_size(), camera.get_colour_intrinsics(),
                 denoising_iterations=400, max_images_per_keyframe=30
             )
-            with RGBDMappingSystem(
+            with RGBDRemodeMappingSystem(
                 OpenNIRGBDImageSource(camera), tracker, depth_estimator, output_dir=args.get("output_dir")
-            ) as system:
-                tsdf = system.run()
+            ) as mapping_system:
+                tsdf = mapping_system.run()
 
             # If ORB-SLAM's not ready yet, forcibly terminate the whole process (this isn't graceful, but
             # if we don't do it then we may have to wait a very long time for it to finish initialising).

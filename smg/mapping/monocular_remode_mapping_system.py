@@ -14,7 +14,7 @@ from smg.pyremode import CONVERGED, DepthEstimator
 from smg.utility import ImageUtil, PoseUtil
 
 
-class MonocularMappingSystem:
+class MonocularRemodeMappingSystem:
     """
     A REMODE-based multi-view mapping system that uses a monocular tracker to estimate the camera poses,
     and fuses keyframes into an Open3D TSDF.
@@ -25,7 +25,7 @@ class MonocularMappingSystem:
     def __init__(self, image_source: RGBImageSource, tracker: MonocularTracker, depth_estimator: DepthEstimator, *,
                  output_dir: Optional[str] = None):
         """
-        Construct a monocular mapping system.
+        Construct a REMODE-based monocular mapping system.
 
         :param image_source:    A source of RGB images.
         :param tracker:         The monocular tracker to use.

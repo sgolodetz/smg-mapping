@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 from typing import Dict, Optional
 
 from smg.imagesources import RGBFromRGBDImageSource, RGBImageSource
-from smg.mapping import MonocularMappingSystem
+from smg.mapping import MonocularRemodeMappingSystem
 from smg.open3d import ReconstructionUtil, VisualisationUtil
 from smg.openni import OpenNICamera, OpenNIRGBDImageSource
 from smg.pyorbslam2 import MonocularTracker
@@ -55,10 +55,10 @@ def main():
             settings_file=f"settings-{source_type}.yaml", use_viewer=True,
             voc_file="C:/orbslam2/Vocabulary/ORBvoc.txt", wait_till_ready=False
         ) as tracker:
-            with MonocularMappingSystem(
+            with MonocularRemodeMappingSystem(
                 image_source, tracker, depth_estimator, output_dir=args.get("output_dir")
-            ) as system:
-                tsdf = system.run()
+            ) as mapping_system:
+                tsdf = mapping_system.run()
 
             # If ORB-SLAM's not ready yet, forcibly terminate the whole process (this isn't graceful, but
             # if we don't do it then we may have to wait a very long time for it to finish initialising).
