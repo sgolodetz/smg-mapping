@@ -56,6 +56,7 @@ def main() -> None:
     with MappingServer(frame_decompressor=RGBDFrameMessageUtil.decompress_frame_message) as server:
         client_id: int = 0
         depth_estimator: Optional[MonocularDepthEstimator] = None
+        image_size: Optional[Tuple[int, int]] = None
         intrinsics: Optional[Tuple[float, float, float, float]] = None
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
         tracker_w_t_c: Optional[np.ndarray] = None
@@ -81,7 +82,9 @@ def main() -> None:
 
             # If the server has a frame from the client that has not yet been processed:
             if server.has_frames_now(client_id):
-                # Get the camera intrinsics from the server.
+                # Get the camera parameters from the server.
+                height, width, _ = server.get_image_shapes(client_id)[0]
+                image_size = (width, height)
                 intrinsics = server.get_intrinsics(client_id)[0]
 
                 # Get the frame from the server.
@@ -125,15 +128,18 @@ def main() -> None:
             glClearColor(1.0, 1.0, 1.0, 1.0)
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
-            # Once the pose is available:
-            if tracker_w_t_c is not None:
+            # Once at least one frame has been received:
+            if image_size is not None:
                 # Set the projection matrix.
                 glMatrixMode(GL_PROJECTION)
-                OpenGLUtil.set_projection_matrix(intrinsics, *window_size)
+                rescaled_intrinsics: Tuple[float, float, float, float] = GeometryUtil.rescale_intrinsics(
+                    intrinsics, image_size, window_size
+                )
+                OpenGLUtil.set_projection_matrix(rescaled_intrinsics, *window_size)
 
                 # Draw the octree.
                 viewing_pose: np.ndarray = \
-                    np.linalg.inv(tracker_w_t_c) if args["camera_mode"] == "follow" \
+                    np.linalg.inv(tracker_w_t_c) if args["camera_mode"] == "follow" and tracker_w_t_c is not None \
                     else camera_controller.get_pose()
                 OctomapUtil.draw_octree(tree, viewing_pose, drawer)
 
