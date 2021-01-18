@@ -44,7 +44,7 @@ def main() -> None:
     drawer.set_color_mode(CM_COLOR_HEIGHT)
 
     # Create the octree.
-    voxel_size: float = 0.025
+    voxel_size: float = 0.05
     tree: OcTree = OcTree(voxel_size)
 
     # Construct the camera controller.
