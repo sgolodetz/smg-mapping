@@ -1,11 +1,14 @@
 import numpy as np
 
 from threading import Event
-from typing import Optional
+from typing import Optional, Tuple
 
 from smg.relocalisation.poseglobalisers import MonocularPoseGlobaliser
 from smg.rotory.drones import Drone
 from smg.rotory.joysticks import FutabaT6K
+from smg.utility import ImageUtil
+
+from ..remote import MappingClient, RGBDFrameMessageUtil
 
 
 class EDroneCalibrationState(int):
@@ -30,12 +33,13 @@ class DroneFSM:
 
     # CONSTRUCTOR
 
-    def __init__(self, drone: Drone, joystick: FutabaT6K):
+    def __init__(self, drone: Drone, joystick: FutabaT6K, *, reconstruct: bool):
         """
         Construct a finite state machine for a drone.
 
         :param drone:       The drone.
         :param joystick:    The joystick that will be used to control the drone's movement.
+        :param reconstruct: Whether to connect to the mapping server to reconstruct a map.
         """
         self.__calibration_state: EDroneCalibrationState = DCS_UNCALIBRATED
         self.__drone: Drone = drone
@@ -49,6 +53,14 @@ class DroneFSM:
         self.__throttle_up_event: Event = Event()
         self.__tracker_w_t_c: Optional[np.ndarray] = None
         self.__should_terminate: bool = False
+
+        self.__calibration_message_sent: bool = False
+        self.__frame_idx: int = 0
+        self.__mapping_client: Optional[MappingClient] = None
+        if reconstruct:
+            self.__mapping_client = MappingClient(
+                frame_compressor=RGBDFrameMessageUtil.compress_frame_message
+            )
 
     # PUBLIC METHODS
 
@@ -80,11 +92,14 @@ class DroneFSM:
         """
         return self.__tracker_w_t_c
 
-    def iterate(self, tracker_c_t_i: Optional[np.ndarray], relocaliser_w_t_c: Optional[np.ndarray],
+    def iterate(self, image: np.ndarray, intrinsics: Tuple[float, float, float, float],
+                tracker_c_t_i: Optional[np.ndarray], relocaliser_w_t_c: Optional[np.ndarray],
                 takeoff_requested: bool, landing_requested: bool) -> None:
         """
         Run an iteration of the state machine.
 
+        :param image:               The most recent colour image from the drone.
+        :param intrinsics:          The intrinsics of the drone's camera.
         :param tracker_c_t_i:       A non-metric transformation from initial camera space to current camera space,
                                     as estimated by the tracker.
         :param relocaliser_w_t_c:   A metric transformation from current camera space to world space, as estimated
@@ -92,6 +107,14 @@ class DroneFSM:
         :param takeoff_requested:   Whether or not the user has asked for the drone to take off.
         :param landing_requested:   Whether or not the user has asked for the drone to land.
         """
+        # If we're connected to a mapping server, send across the camera parameters if we haven't already.
+        if self.__mapping_client is not None and not self.__calibration_message_sent:
+            height, width = image.shape[:2]
+            self.__mapping_client.send_calibration_message(RGBDFrameMessageUtil.make_calibration_message(
+                (width, height), (width, height), intrinsics, intrinsics
+            ))
+            self.__calibration_message_sent = True
+
         # Process any take-off or landing requests, and set the corresponding events so that individual states
         # can respond to them later if desired.
         if takeoff_requested:
@@ -133,7 +156,7 @@ class DroneFSM:
         elif self.__calibration_state == DCS_TRAINING:
             self.__iterate_training(tracker_i_t_c)
         elif self.__calibration_state == DCS_CALIBRATED:
-            self.__iterate_calibrated(tracker_i_t_c, relocaliser_w_t_c)
+            self.__iterate_calibrated(image, tracker_i_t_c, relocaliser_w_t_c)
 
         # Record the current setting of the throttle for later, so we can detect throttle up/down events that occur.
         self.__throttle_prev = throttle
@@ -146,11 +169,15 @@ class DroneFSM:
 
     def terminate(self) -> None:
         """Tell the state machine to terminate."""
-        self.__should_terminate = True
+        if self.alive():
+            if self.__mapping_client is not None:
+                self.__mapping_client.terminate()
+
+            self.__should_terminate = True
 
     # PRIVATE METHODS
 
-    def __iterate_calibrated(self, tracker_i_t_c: Optional[np.ndarray],
+    def __iterate_calibrated(self, image: np.ndarray, tracker_i_t_c: Optional[np.ndarray],
                              relocaliser_w_t_c: Optional[np.ndarray]) -> None:
         """
         Run an iteration of the 'calibrated' state.
@@ -160,6 +187,7 @@ class DroneFSM:
             On entering this state, the throttle will be down (as it was during the training of the globaliser).
             Moving the throttle up/down will then set/clear a fixed height.
 
+        :param image:               The most recent image from the drone.
         :param tracker_i_t_c:       A non-metric transformation from current camera space to initial camera space,
                                     as estimated by the tracker.
         :param relocaliser_w_t_c:   A metric transformation from current camera space to world space, as estimated
@@ -180,6 +208,14 @@ class DroneFSM:
             # throttle down again with no ill effects (clearing a fixed height that hasn't been set is a no-op).
             if self.__throttle_up_event.is_set():
                 self.__pose_globaliser.set_fixed_height(self.__tracker_w_t_c)
+
+            # If we're reconstructing a map, send the current frame across to the mapping server.
+            if self.__mapping_client is not None:
+                dummy_depth_image: np.ndarray = np.zeros(image.shape[:2], dtype=np.float32)
+                self.__mapping_client.send_frame_message(lambda msg: RGBDFrameMessageUtil.fill_frame_message(
+                    self.__frame_idx, image, ImageUtil.to_short_depth(dummy_depth_image), self.__tracker_w_t_c, msg
+                ))
+                self.__frame_idx += 1
         else:
             # If the non-metric tracker pose isn't available, the metric tracker pose clearly can't be estimated.
             self.__tracker_w_t_c = None

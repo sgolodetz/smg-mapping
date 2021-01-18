@@ -82,6 +82,10 @@ def main() -> None:
         "--drone_type", "-t", type=str, required=True, choices=("ardrone2", "tello"),
         help="the drone type"
     )
+    parser.add_argument(
+        "--reconstruct", "-r", action="store_true",
+        help="whether to connect to the mapping server to reconstruct a map"
+    )
     args: dict = vars(parser.parse_args())
 
     # Set up a relocaliser that uses an ArUco marker of a known size and at a known height to relocalise.
@@ -141,7 +145,7 @@ def main() -> None:
                 )
 
                 # Construct the state machine for the drone.
-                state_machine: DroneFSM = DroneFSM(drone, joystick)
+                state_machine: DroneFSM = DroneFSM(drone, joystick, reconstruct=args["reconstruct"])
 
                 # Initialise the timestamp and the drone's trajectory smoothers (used for visualisation).
                 timestamp: float = 0.0
@@ -179,10 +183,13 @@ def main() -> None:
                     tracker_c_t_i: Optional[np.ndarray] = tracker.estimate_pose(image) if tracker.is_ready() else None
 
                     # Try to estimate a transformation from current camera space to world space using the relocaliser.
-                    relocaliser_w_t_c: Optional[np.ndarray] = relocaliser.estimate_pose(image, drone.get_intrinsics())
+                    intrinsics: Tuple[float, float, float, float] = drone.get_intrinsics()
+                    relocaliser_w_t_c: Optional[np.ndarray] = relocaliser.estimate_pose(image, intrinsics)
 
                     # Run an iteration of the state machine.
-                    state_machine.iterate(tracker_c_t_i, relocaliser_w_t_c, takeoff_requested, landing_requested)
+                    state_machine.iterate(
+                        image, intrinsics, tracker_c_t_i, relocaliser_w_t_c, takeoff_requested, landing_requested
+                    )
 
                     # Update the drone's trajectories.
                     tracker_w_t_c: Optional[np.ndarray] = state_machine.get_tracker_w_t_c()
