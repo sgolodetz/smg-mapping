@@ -40,7 +40,6 @@ def main() -> None:
             colour_image: Optional[np.ndarray] = None
             depth_estimator: Optional[MonocularDepthEstimator] = None
             receiver: RGBDFrameReceiver = RGBDFrameReceiver()
-            tracker_w_t_c: Optional[np.ndarray] = None
 
             # Start the server.
             server.start()
@@ -50,11 +49,12 @@ def main() -> None:
                 for event in pygame.event.get():
                     # If the user wants to quit:
                     if event.type == pygame.QUIT:
-                        # If the reconstruction process has actually started:
-                        if tracker_w_t_c is not None:
-                            # Visualise the TSDF.
-                            mesh: o3d.geometry.TriangleMesh = ReconstructionUtil.make_mesh(tsdf, print_progress=True)
-                            VisualisationUtil.visualise_geometry(mesh)
+                        # Visualise the TSDF.
+                        grid: o3d.geometry.LineSet = VisualisationUtil.make_voxel_grid(
+                            [-2, -2, -2], [2, 0, 2], [1, 1, 1]
+                        )
+                        mesh: o3d.geometry.TriangleMesh = ReconstructionUtil.make_mesh(tsdf, print_progress=True)
+                        VisualisationUtil.visualise_geometries([grid, mesh])
 
                         # Shut down pygame, and forcibly exit the program.
                         pygame.quit()
@@ -69,7 +69,7 @@ def main() -> None:
                     # Get the frame from the server.
                     server.get_frame(client_id, receiver)
                     colour_image = receiver.get_rgb_image()
-                    tracker_w_t_c = receiver.get_pose()
+                    tracker_w_t_c: np.ndarray = receiver.get_pose()
 
                     # If the depth estimator hasn't been constructed yet, construct it now.
                     if depth_estimator is None:
