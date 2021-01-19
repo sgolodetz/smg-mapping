@@ -69,6 +69,17 @@ class MappingServer:
         if client_handler is not None:
             client_handler.get_frame(receiver)
 
+    def get_image_shapes(self, client_id: int) -> Optional[List[Tuple[int, int, int]]]:
+        """
+        Try to get the shapes of the images being produced by the different cameras being used by the specified client.
+
+        :param client_id:   The ID of the client.
+        :return:            The shapes of the images being produced by the different cameras, if the client
+                            is active and a calibration message has been received from it, or None otherwise.
+        """
+        client_handler: MappingClientHandler = self._get_client_handler(client_id, wait_for_start=True)
+        return client_handler.get_image_shapes() if client_handler is not None else None
+
     def get_intrinsics(self, client_id: int) -> Optional[List[Tuple[float, float, float, float]]]:
         """
         Try to get the intrinsics of the different cameras being used by the specified client.

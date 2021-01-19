@@ -75,6 +75,15 @@ class MappingClientHandler:
             # Pop the frame that's just been read from the message queue.
             self.__frame_message_queue.pop()
 
+    def get_image_shapes(self) -> Optional[List[Tuple[int, int, int]]]:
+        """
+        Try to get the shapes of the images being produced by the different cameras being used.
+
+        :return:    The shapes of the images being produced by the different cameras, if a calibration
+                    message has been received from the client, or None otherwise.
+        """
+        return self.__calib_msg.get_image_shapes() if self.__calib_msg is not None else None
+
     def get_intrinsics(self) -> Optional[List[Tuple[float, float, float, float]]]:
         """
         Try to get the intrinsics of the different cameras being used.
