@@ -11,56 +11,51 @@ from smg.utility import ImageUtil
 from ..remote import MappingClient, RGBDFrameMessageUtil
 
 
-class EDroneCalibrationState(int):
-    """The different calibration states in which a drone can be."""
+class EDroneState(int):
+    """The different states in which a drone can be."""
     pass
 
 
 # Fly around as normal with non-metric tracking.
-DCS_UNCALIBRATED: EDroneCalibrationState = 0
+DS_NON_METRIC: EDroneState = 0
 # Fly around in front of the marker to set the reference space.
-DCS_SETTING_REFERENCE: EDroneCalibrationState = 1
+DS_SETTING_REFERENCE: EDroneState = 1
 # Land prior to training the globaliser to estimate the scale.
-DCS_PREPARING_TO_TRAIN: EDroneCalibrationState = 2
+DS_PREPARING_TO_TRAIN: EDroneState = 2
 # Whilst on the ground, train the globaliser to estimate the scale.
-DCS_TRAINING: EDroneCalibrationState = 3
+DS_TRAINING: EDroneState = 3
 # Fly around as normal with metric tracking.
-DCS_CALIBRATED: EDroneCalibrationState = 4
+DS_METRIC: EDroneState = 4
 
 
-class DroneFSM:
-    """A finite state machine for a drone."""
+class MetricDroneFSM:
+    """A finite state machine that allows metric tracking to be configured for a drone.."""
 
     # CONSTRUCTOR
 
-    def __init__(self, drone: Drone, joystick: FutabaT6K, *, reconstruct: bool):
+    def __init__(self, drone: Drone, joystick: FutabaT6K, mapping_client: Optional[MappingClient] = None):
         """
-        Construct a finite state machine for a drone.
+        Construct a finite state machine that allows metric tracking to be configured for a drone.
 
-        :param drone:       The drone.
-        :param joystick:    The joystick that will be used to control the drone's movement.
-        :param reconstruct: Whether to connect to the mapping server to reconstruct a map.
+        :param drone:           The drone.
+        :param joystick:        The joystick that will be used to control the drone's movement.
+        :param mapping_client:  The mapping client to use (if any).
         """
-        self.__calibration_state: EDroneCalibrationState = DCS_UNCALIBRATED
+        self.__calibration_message_sent: bool = False
         self.__drone: Drone = drone
+        self.__frame_idx: int = 0
         self.__joystick: FutabaT6K = joystick
         self.__landing_event: Event = Event()
+        self.__mapping_client: Optional[MappingClient] = mapping_client
         self.__pose_globaliser: MonocularPoseGlobaliser = MonocularPoseGlobaliser(debug=True)
         self.__relocaliser_w_t_c_for_training: Optional[np.ndarray] = None
+        self.__state: EDroneState = DS_NON_METRIC
         self.__takeoff_event: Event = Event()
         self.__throttle_down_event: Event = Event()
         self.__throttle_prev: Optional[float] = None
         self.__throttle_up_event: Event = Event()
         self.__tracker_w_t_c: Optional[np.ndarray] = None
         self.__should_terminate: bool = False
-
-        self.__calibration_message_sent: bool = False
-        self.__frame_idx: int = 0
-        self.__mapping_client: Optional[MappingClient] = None
-        if reconstruct:
-            self.__mapping_client = MappingClient(
-                frame_compressor=RGBDFrameMessageUtil.compress_frame_message
-            )
 
     # PUBLIC METHODS
 
@@ -72,20 +67,20 @@ class DroneFSM:
         """
         return not self.__should_terminate
 
-    def get_calibration_state(self) -> EDroneCalibrationState:
+    def get_state(self) -> EDroneState:
         """
-        Get the calibration state of the drone.
+        Get the state of the drone.
 
-        :return:    The calibration state of the drone.
+        :return:    The state of the drone.
         """
-        return self.__calibration_state
+        return self.__state
 
     def get_tracker_w_t_c(self) -> Optional[np.ndarray]:
         """
         Try to get a metric transformation from current camera space to world space, as estimated by the tracker.
 
         .. note::
-            This returns None iff either (i) the tracker failed, or (ii) the drone hasn't been calibrated yet.
+            This returns None iff either (i) the tracker failed, or (ii) metric tracking hasn't been configured yet.
 
         :return:    A metric transformation from current camera space to world space, as estimated by the tracker,
                     if available, or None otherwise.
@@ -147,16 +142,16 @@ class DroneFSM:
         tracker_i_t_c: Optional[np.ndarray] = np.linalg.inv(tracker_c_t_i) if tracker_c_t_i is not None else None
 
         # Run an iteration of the current state.
-        if self.__calibration_state == DCS_UNCALIBRATED:
-            self.__iterate_uncalibrated()
-        elif self.__calibration_state == DCS_SETTING_REFERENCE:
+        if self.__state == DS_NON_METRIC:
+            self.__iterate_non_metric()
+        elif self.__state == DS_SETTING_REFERENCE:
             self.__iterate_setting_reference(tracker_i_t_c, relocaliser_w_t_c)
-        elif self.__calibration_state == DCS_PREPARING_TO_TRAIN:
+        elif self.__state == DS_PREPARING_TO_TRAIN:
             self.__iterate_preparing_to_train()
-        elif self.__calibration_state == DCS_TRAINING:
+        elif self.__state == DS_TRAINING:
             self.__iterate_training(tracker_i_t_c)
-        elif self.__calibration_state == DCS_CALIBRATED:
-            self.__iterate_calibrated(image, tracker_i_t_c, relocaliser_w_t_c)
+        elif self.__state == DS_METRIC:
+            self.__iterate_metric(image, tracker_i_t_c, relocaliser_w_t_c)
 
         # Record the current setting of the throttle for later, so we can detect throttle up/down events that occur.
         self.__throttle_prev = throttle
@@ -177,10 +172,10 @@ class DroneFSM:
 
     # PRIVATE METHODS
 
-    def __iterate_calibrated(self, image: np.ndarray, tracker_i_t_c: Optional[np.ndarray],
-                             relocaliser_w_t_c: Optional[np.ndarray]) -> None:
+    def __iterate_metric(self, image: np.ndarray, tracker_i_t_c: Optional[np.ndarray],
+                         relocaliser_w_t_c: Optional[np.ndarray]) -> None:
         """
-        Run an iteration of the 'calibrated' state.
+        Run an iteration of the 'metric' state.
 
         .. note::
             The drone enters this state by taking off after training the globaliser. It then never leaves this state.
@@ -229,6 +224,19 @@ class DroneFSM:
             print("Relocaliser Pose:")
             print(relocaliser_w_t_c)
 
+    def __iterate_non_metric(self) -> None:
+        """
+        Run an iteration of the 'non-metric' state.
+
+        .. note::
+            The drone starts in this state. It leaves this state by throttling up to enter the
+            setting reference state. Whilst in this state, the drone can move around as normal,
+            but any poses estimated by the tracker will be non-metric.
+        """
+        # If the user throttles up, start the calibration process.
+        if self.__throttle_up_event.is_set():
+            self.__state = DS_SETTING_REFERENCE
+
     def __iterate_preparing_to_train(self) -> None:
         """
         Run an iteration of the 'preparing to train' state.
@@ -242,13 +250,13 @@ class DroneFSM:
             In practice, this state exists to allow the drone to land prior to starting to train the
             globaliser. The training process should only be started once the drone is on the ground.
         """
-        # If the user has told the drone to take off, return to the previous calibration step.
+        # If the user has told the drone to take off, return to the previous state in the configuration process.
         if self.__takeoff_event.is_set():
-            self.__calibration_state = DCS_SETTING_REFERENCE
+            self.__state = DS_SETTING_REFERENCE
 
-        # If the user has throttled down, move on to the next calibration step.
+        # If the user has throttled down, move on to the next state in the configuration process.
         if self.__throttle_down_event.is_set():
-            self.__calibration_state = DCS_TRAINING
+            self.__state = DS_TRAINING
 
     def __iterate_setting_reference(self, tracker_i_t_c: Optional[np.ndarray],
                                     relocaliser_w_t_c: Optional[np.ndarray]) -> None:
@@ -256,9 +264,9 @@ class DroneFSM:
         Run an iteration of the 'setting reference' state.
 
         .. note::
-            The drone enters this state either by throttling up from the uncalibrated state, or by taking off
+            The drone enters this state either by throttling up from the non-metric state, or by taking off
             again after preparing to train the globaliser. It leaves this state either by starting to land and
-            entering the preparing to train state, or by throttling down and re-entering the uncalibrated state.
+            entering the preparing to train state, or by throttling down and re-entering the non-metric state.
             On entering this state, the throttle will be up. To fulfil the objective of being in this state,
             the drone must at some point fly in front of the marker so that the reference space can be set.
             It can only land and continue with calibration from a point at which it can see the marker (to
@@ -275,10 +283,10 @@ class DroneFSM:
             # called repeatedly (the poses from the most recent call will be used to define the reference space).
             self.__pose_globaliser.set_reference_space(tracker_i_t_c, relocaliser_w_t_c)
 
-            # If the user has told the drone to land, move on to the next calibration step. Otherwise, stay on this
-            # step, and wait for the user to take off and try again.
+            # If the user has told the drone to land, move on to the next state in the configuration process.
+            # Otherwise, stay in this state, and wait for the user to take off and try again.
             if self.__landing_event.is_set():
-                self.__calibration_state = DCS_PREPARING_TO_TRAIN
+                self.__state = DS_PREPARING_TO_TRAIN
 
                 # It's unlikely that we'll be able to see the ArUco marker to relocalise once we're on the ground,
                 # so estimate the relocaliser pose we'll have at that point by using the pose currently output by
@@ -286,9 +294,9 @@ class DroneFSM:
                 self.__relocaliser_w_t_c_for_training = relocaliser_w_t_c.copy()
                 self.__relocaliser_w_t_c_for_training[1, 3] = 0.0
 
-        # If the user has throttled down, stop the calibration process.
+        # If the user has throttled down, stop the configuration process.
         if self.__throttle_down_event.is_set():
-            self.__calibration_state = DCS_UNCALIBRATED
+            self.__state = DS_NON_METRIC
 
     def __iterate_training(self, tracker_i_t_c: Optional[np.ndarray]) -> None:
         """
@@ -296,9 +304,9 @@ class DroneFSM:
 
         .. note::
             The drone enters this state by throttling down from the preparing to train state. It leaves this
-            state either by taking off to enter the calibrated state, or by throttling up again to return to
-            the preparing to train state. On entering this state, the throttle will be down. The drone will
-            be on the ground whilst in this state.
+            state either by taking off to enter the metric state, or by throttling up again to return to the
+            preparing to train state. On entering this state, the throttle will be down. The drone will be on
+            the ground whilst in this state.
 
         :param tracker_i_t_c:   A non-metric transformation from current camera space to initial camera space,
                                 as estimated by the tracker.
@@ -307,23 +315,10 @@ class DroneFSM:
         if tracker_i_t_c is not None and self.__relocaliser_w_t_c_for_training is not None:
             self.__pose_globaliser.train(tracker_i_t_c, self.__relocaliser_w_t_c_for_training)
 
-        # If the user has told the drone to take off, complete the calibration process.
+        # If the user has told the drone to take off, complete the configuration process.
         if self.__takeoff_event.is_set():
-            self.__calibration_state = DCS_CALIBRATED
+            self.__state = DS_METRIC
 
-        # If the user has throttled up, return to the previous calibration step.
+        # If the user has throttled up, return to the previous state in the configuration process.
         if self.__throttle_up_event.is_set():
-            self.__calibration_state = DCS_PREPARING_TO_TRAIN
-
-    def __iterate_uncalibrated(self) -> None:
-        """
-        Run an iteration of the 'uncalibrated' state.
-
-        .. note::
-            The drone starts in this state. It leaves this state by throttling up to enter the
-            setting reference state. Whilst in this state, the drone can move around as normal,
-            but any poses estimated by the tracker will be non-metric.
-        """
-        # If the user throttles up, start the calibration process.
-        if self.__throttle_up_event.is_set():
-            self.__calibration_state = DCS_SETTING_REFERENCE
+            self.__state = DS_PREPARING_TO_TRAIN

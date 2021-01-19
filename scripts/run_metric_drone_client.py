@@ -9,7 +9,8 @@ from OpenGL.GL import *
 from timeit import default_timer as timer
 from typing import Dict, List, Optional, Tuple
 
-from smg.mapping.metric import DroneFSM
+from smg.mapping.metric import MetricDroneFSM
+from smg.mapping.remote import MappingClient, RGBDFrameMessageUtil
 from smg.opengl import OpenGLImageRenderer, OpenGLMatrixContext, OpenGLUtil
 from smg.pyorbslam2 import MonocularTracker
 from smg.relocalisation import ArUcoPnPRelocaliser
@@ -145,7 +146,10 @@ def main() -> None:
                 )
 
                 # Construct the state machine for the drone.
-                state_machine: DroneFSM = DroneFSM(drone, joystick, reconstruct=args["reconstruct"])
+                mapping_client: Optional[MappingClient] = None
+                if args["reconstruct"]:
+                    mapping_client = MappingClient(frame_compressor=RGBDFrameMessageUtil.compress_frame_message)
+                state_machine: MetricDroneFSM = MetricDroneFSM(drone, joystick, mapping_client)
 
                 # Initialise the timestamp and the drone's trajectory smoothers (used for visualisation).
                 timestamp: float = 0.0
@@ -200,8 +204,9 @@ def main() -> None:
 
                     # Update the caption of the window to reflect the current state.
                     pygame.display.set_caption(
-                        f"Calibration State: {int(state_machine.get_calibration_state())}; "
-                        f"Battery Level: {drone.get_battery_level()}"
+                        "Metric Drone Client: "
+                        f"State = {int(state_machine.get_state())}; "
+                        f"Battery Level = {drone.get_battery_level()}"
                     )
 
                     # Render the contents of the window.
