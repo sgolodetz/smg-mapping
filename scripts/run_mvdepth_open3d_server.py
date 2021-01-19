@@ -1,3 +1,4 @@
+import cv2
 import numpy as np
 import open3d as o3d
 import os
@@ -5,6 +6,7 @@ import os
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame
 
+from argparse import ArgumentParser
 from OpenGL.GL import *
 from timeit import default_timer as timer
 from typing import Optional, Tuple
@@ -13,11 +15,21 @@ from smg.mapping.remote import MappingServer, RGBDFrameMessageUtil, RGBDFrameRec
 from smg.mvdepthnet import MonocularDepthEstimator
 from smg.open3d import ReconstructionUtil, VisualisationUtil
 from smg.opengl import OpenGLImageRenderer
-from smg.utility import GeometryUtil, ImageUtil
+from smg.utility import GeometryUtil, ImageUtil, PoseUtil
 
 
 def main() -> None:
     np.set_printoptions(suppress=True)
+
+    # Parse any command-line arguments.
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--output_dir", type=str,
+        help="an optional directory into which to save the sequence"
+    )
+    args: dict = vars(parser.parse_args())
+
+    output_dir: Optional[str] = args["output_dir"]
 
     # Initialise PyGame and create the window.
     pygame.init()
@@ -39,6 +51,7 @@ def main() -> None:
             client_id: int = 0
             colour_image: Optional[np.ndarray] = None
             depth_estimator: Optional[MonocularDepthEstimator] = None
+            frame_idx: int = 0
             receiver: RGBDFrameReceiver = RGBDFrameReceiver()
 
             # Start the server.
@@ -104,6 +117,21 @@ def main() -> None:
 
                         end = timer()
                         print(f"  - Time: {end - start}s")
+
+                        # If an output directory has been specified, also save the frame to disk.
+                        if output_dir is not None:
+                            os.makedirs(output_dir, exist_ok=True)
+                            depth_image: np.ndarray = ImageUtil.from_short_depth(receiver.get_depth_image())
+
+                            colour_filename: str = os.path.join(output_dir, f"frame-{frame_idx:06d}.color.png")
+                            depth_filename: str = os.path.join(output_dir, f"frame-{frame_idx:06d}.depth.png")
+                            pose_filename: str = os.path.join(output_dir, f"frame-{frame_idx:06d}.pose.txt")
+
+                            cv2.imwrite(colour_filename, colour_image)
+                            ImageUtil.save_depth_image(depth_filename, depth_image)
+                            PoseUtil.save_pose(pose_filename, tracker_w_t_c)
+
+                            frame_idx += 1
 
                 # Clear the colour buffer.
                 glClearColor(1.0, 1.0, 1.0, 1.0)
