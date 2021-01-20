@@ -111,7 +111,8 @@ class MappingClient:
         """Tell the client to terminate."""
         if self.__alive:
             self.__should_terminate.set()
-            self.__message_sender_thread.join()
+            if self.__message_sender_thread is not None:
+                self.__message_sender_thread.join()
             self.__sock.shutdown(socket.SHUT_RDWR)
             self.__sock.close()
             self.__alive = False
