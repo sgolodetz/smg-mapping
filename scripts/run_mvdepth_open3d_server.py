@@ -50,7 +50,6 @@ def main() -> None:
             client_id: int = 0
             colour_image: Optional[np.ndarray] = None
             depth_estimator: Optional[MonocularDepthEstimator] = None
-            frame_idx: int = 0
             receiver: RGBDFrameReceiver = RGBDFrameReceiver()
 
             # Start the server.
@@ -85,12 +84,12 @@ def main() -> None:
 
                     # If an output directory has been specified, save the frame to disk.
                     if output_dir is not None:
+                        frame_idx: int = receiver.get_frame_index()
                         depth_image: np.ndarray = ImageUtil.from_short_depth(receiver.get_depth_image())
                         RGBDSequenceUtil.save_frame(
                             frame_idx, output_dir, colour_image, depth_image, tracker_w_t_c,
                             colour_intrinsics=intrinsics, depth_intrinsics=intrinsics
                         )
-                        frame_idx += 1
 
                     # If the depth estimator hasn't been constructed yet, construct it now.
                     if depth_estimator is None:

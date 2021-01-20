@@ -79,7 +79,7 @@ class RGBDFrameMessageUtil:
         rgb_image: np.ndarray = msg.get_image_data(0).reshape(msg.get_image_shapes()[0])
         depth_image: np.ndarray = msg.get_image_data(1).view(np.uint16).reshape(msg.get_image_shapes()[1][:2])
         pose: np.ndarray = msg.get_pose(0)
-        return frame_idx, rgb_image, depth_image, pose
+        return frame_idx, rgb_image.copy(), depth_image.copy(), pose.copy()
 
     @staticmethod
     def fill_frame_message(frame_idx: int, rgb_image: np.ndarray, depth_image: np.ndarray, pose: np.ndarray,

@@ -29,7 +29,7 @@ class MappingClient:
         self.__alive: bool = False
         self.__calib_msg: Optional[CalibrationMessage] = None
         self.__frame_compressor: Optional[Callable[[FrameMessage], FrameMessage]] = frame_compressor
-        self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage](PooledQueue.PES_GROW)
+        self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage](PooledQueue.PES_DISCARD)
         self.__message_sender_thread: Optional[threading.Thread] = None
         self.__should_terminate: threading.Event = threading.Event()
 
