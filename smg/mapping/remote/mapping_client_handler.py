@@ -40,7 +40,7 @@ class MappingClientHandler:
         self.__client_id: int = client_id
         self.__connection_ok: bool = True
         self.__frame_decompressor: Optional[Callable[[FrameMessage], FrameMessage]] = frame_decompressor
-        self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage](PooledQueue.PES_DISCARD)
+        self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage](PooledQueue.PES_WAIT)
         self.__lock: threading.Lock = threading.Lock()
         self.__should_terminate: threading.Event = should_terminate
         self.__sock: socket.SocketType = sock

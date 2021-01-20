@@ -1,4 +1,3 @@
-import cv2
 import numpy as np
 import open3d as o3d
 import os
@@ -15,7 +14,7 @@ from smg.mapping.remote import MappingServer, RGBDFrameMessageUtil, RGBDFrameRec
 from smg.mvdepthnet import MonocularDepthEstimator
 from smg.open3d import ReconstructionUtil, VisualisationUtil
 from smg.opengl import OpenGLImageRenderer
-from smg.utility import GeometryUtil, ImageUtil, PoseUtil
+from smg.utility import GeometryUtil, ImageUtil, RGBDSequenceUtil
 
 
 def main() -> None:
@@ -84,6 +83,15 @@ def main() -> None:
                     colour_image = receiver.get_rgb_image()
                     tracker_w_t_c: np.ndarray = receiver.get_pose()
 
+                    # If an output directory has been specified, save the frame to disk.
+                    if output_dir is not None:
+                        depth_image: np.ndarray = ImageUtil.from_short_depth(receiver.get_depth_image())
+                        RGBDSequenceUtil.save_frame(
+                            frame_idx, output_dir, colour_image, depth_image, tracker_w_t_c,
+                            colour_intrinsics=intrinsics, depth_intrinsics=intrinsics
+                        )
+                        frame_idx += 1
+
                     # If the depth estimator hasn't been constructed yet, construct it now.
                     if depth_estimator is None:
                         depth_estimator = MonocularDepthEstimator(
@@ -117,21 +125,6 @@ def main() -> None:
 
                         end = timer()
                         print(f"  - Time: {end - start}s")
-
-                        # If an output directory has been specified, also save the frame to disk.
-                        if output_dir is not None:
-                            os.makedirs(output_dir, exist_ok=True)
-                            depth_image: np.ndarray = ImageUtil.from_short_depth(receiver.get_depth_image())
-
-                            colour_filename: str = os.path.join(output_dir, f"frame-{frame_idx:06d}.color.png")
-                            depth_filename: str = os.path.join(output_dir, f"frame-{frame_idx:06d}.depth.png")
-                            pose_filename: str = os.path.join(output_dir, f"frame-{frame_idx:06d}.pose.txt")
-
-                            cv2.imwrite(colour_filename, colour_image)
-                            ImageUtil.save_depth_image(depth_filename, depth_image)
-                            PoseUtil.save_pose(pose_filename, tracker_w_t_c)
-
-                            frame_idx += 1
 
                 # Clear the colour buffer.
                 glClearColor(1.0, 1.0, 1.0, 1.0)
