@@ -15,7 +15,7 @@ from smg.opengl import OpenGLUtil
 from smg.pyoctomap import *
 from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
-from smg.utility import GeometryUtil
+from smg.utility import GeometryUtil, PooledQueue
 
 
 def main() -> None:
@@ -26,6 +26,11 @@ def main() -> None:
     parser.add_argument(
         "--camera_mode", "-m", type=str, choices=("follow", "free"), default="free",
         help="the camera mode"
+    )
+    parser.add_argument(
+        "--pool_empty_strategy", "-p", type=str, default="discard",
+        choices=("discard", "grow", "replace_random", "wait"),
+        help="the strategy to use when a frame message is received whilst a client handler's frame pool is empty"
     )
     args: dict = vars(parser.parse_args())
 
@@ -53,9 +58,14 @@ def main() -> None:
     )
 
     # Construct the mapping server.
-    with MappingServer(frame_decompressor=RGBDFrameMessageUtil.decompress_frame_message) as server:
+    with MappingServer(
+        frame_decompressor=RGBDFrameMessageUtil.decompress_frame_message,
+        pool_empty_strategy=PooledQueue.EPoolEmptyStrategy.make(args["pool_empty_strategy"])
+    ) as server:
         client_id: int = 0
-        depth_estimator: Optional[MonocularDepthEstimator] = None
+        depth_estimator: MonocularDepthEstimator = MonocularDepthEstimator(
+            "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar"
+        )
         image_size: Optional[Tuple[int, int]] = None
         intrinsics: Optional[Tuple[float, float, float, float]] = None
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
@@ -82,21 +92,16 @@ def main() -> None:
 
             # If the server has a frame from the client that has not yet been processed:
             if server.has_frames_now(client_id):
-                # Get the camera parameters from the server.
+                # Get the camera parameters from the server, and pass the intrinsics to the depth estimator.
                 height, width, _ = server.get_image_shapes(client_id)[0]
                 image_size = (width, height)
                 intrinsics = server.get_intrinsics(client_id)[0]
+                depth_estimator.set_intrinsics(GeometryUtil.intrinsics_to_matrix(intrinsics))
 
                 # Get the frame from the server.
                 server.get_frame(client_id, receiver)
                 colour_image: np.ndarray = receiver.get_rgb_image()
                 tracker_w_t_c = receiver.get_pose()
-
-                # If the depth estimator hasn't been constructed yet, construct it now.
-                if depth_estimator is None:
-                    depth_estimator = MonocularDepthEstimator(
-                        "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar"
-                    ).set_intrinsics(GeometryUtil.intrinsics_to_matrix(intrinsics))
 
                 # Try to estimate a depth image for the frame.
                 estimated_depth_image: Optional[np.ndarray] = depth_estimator.estimate_depth(
