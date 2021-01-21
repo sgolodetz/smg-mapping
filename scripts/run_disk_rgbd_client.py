@@ -21,6 +21,7 @@ def main() -> None:
 
     try:
         with MappingClient(frame_compressor=RGBDFrameMessageUtil.compress_frame_message) as client:
+            # Try to load the camera parameters for the sequence. If this fails, raise an exception.
             calib: Optional[CameraParameters] = RGBDSequenceUtil.try_load_calibration(sequence_dir)
             if calib is None:
                 raise RuntimeError(f"Cannot load calibration from '{sequence_dir}'")
@@ -39,9 +40,9 @@ def main() -> None:
                 # Try to load an RGB-D frame from disk.
                 frame: Optional[Dict[str, Any]] = RGBDSequenceUtil.try_load_frame(frame_idx, sequence_dir)
 
-                # If a frame was successfully loaded:
+                # If the frame was successfully loaded:
                 if frame is not None:
-                    # Send the frame across to the server.
+                    # Send it across to the server.
                     client.send_frame_message(lambda msg: RGBDFrameMessageUtil.fill_frame_message(
                         frame_idx,
                         frame["colour_image"],
