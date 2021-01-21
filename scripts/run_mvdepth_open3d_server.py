@@ -5,6 +5,7 @@ import os
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame
 
+from argparse import ArgumentParser
 from OpenGL.GL import *
 from timeit import default_timer as timer
 from typing import Optional, Tuple
@@ -13,11 +14,21 @@ from smg.mapping.remote import MappingServer, RGBDFrameMessageUtil, RGBDFrameRec
 from smg.mvdepthnet import MonocularDepthEstimator
 from smg.open3d import ReconstructionUtil, VisualisationUtil
 from smg.opengl import OpenGLImageRenderer
-from smg.utility import GeometryUtil, ImageUtil
+from smg.utility import GeometryUtil, ImageUtil, RGBDSequenceUtil
 
 
 def main() -> None:
     np.set_printoptions(suppress=True)
+
+    # Parse any command-line arguments.
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--output_dir", type=str,
+        help="an optional directory into which to save the sequence"
+    )
+    args: dict = vars(parser.parse_args())
+
+    output_dir: Optional[str] = args["output_dir"]
 
     # Initialise PyGame and create the window.
     pygame.init()
@@ -70,6 +81,15 @@ def main() -> None:
                     server.get_frame(client_id, receiver)
                     colour_image = receiver.get_rgb_image()
                     tracker_w_t_c: np.ndarray = receiver.get_pose()
+
+                    # If an output directory has been specified, save the frame to disk.
+                    if output_dir is not None:
+                        frame_idx: int = receiver.get_frame_index()
+                        depth_image: np.ndarray = ImageUtil.from_short_depth(receiver.get_depth_image())
+                        RGBDSequenceUtil.save_frame(
+                            frame_idx, output_dir, colour_image, depth_image, tracker_w_t_c,
+                            colour_intrinsics=intrinsics, depth_intrinsics=intrinsics
+                        )
 
                     # If the depth estimator hasn't been constructed yet, construct it now.
                     if depth_estimator is None:

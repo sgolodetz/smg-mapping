@@ -13,6 +13,7 @@ class RGBDFrameReceiver:
 
     def __init__(self):
         """Construct an RGB-D frame receiver."""
+        self.__frame_idx: Optional[int] = None
         self.__rgb_image: Optional[np.ndarray] = None
         self.__depth_image: Optional[np.ndarray] = None
         self.__pose: Optional[np.ndarray] = None
@@ -40,6 +41,14 @@ class RGBDFrameReceiver:
         :return:    The depth image of the RGB-D frame.
         """
         return self.__depth_image
+
+    def get_frame_index(self) -> int:
+        """
+        Get the index of the RGB-D frame.
+
+        :return:    The index of the RGB-D frame.
+        """
+        return self.__frame_idx
 
     def get_pose(self) -> np.ndarray:
         """

@@ -79,7 +79,12 @@ class RGBDFrameMessageUtil:
         rgb_image: np.ndarray = msg.get_image_data(0).reshape(msg.get_image_shapes()[0])
         depth_image: np.ndarray = msg.get_image_data(1).view(np.uint16).reshape(msg.get_image_shapes()[1][:2])
         pose: np.ndarray = msg.get_pose(0)
-        return frame_idx, rgb_image, depth_image, pose
+
+        # Note: It's extremely important that we return *copies* of the data here, since the versions in
+        #       the message may change once this method returns. (The context is that the message comes
+        #       from a pool, and it will be returned to the pool once the lock that's held whilst this
+        #       method is called is released. See also MappingClientHandler.get_frame.)
+        return frame_idx, rgb_image.copy(), depth_image.copy(), pose.copy()
 
     @staticmethod
     def fill_frame_message(frame_idx: int, rgb_image: np.ndarray, depth_image: np.ndarray, pose: np.ndarray,
