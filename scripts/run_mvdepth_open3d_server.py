@@ -14,7 +14,7 @@ from smg.mapping.remote import MappingServer, RGBDFrameMessageUtil, RGBDFrameRec
 from smg.mvdepthnet import MonocularDepthEstimator
 from smg.open3d import ReconstructionUtil, VisualisationUtil
 from smg.opengl import OpenGLImageRenderer
-from smg.utility import GeometryUtil, ImageUtil, RGBDSequenceUtil
+from smg.utility import GeometryUtil, ImageUtil, PooledQueue, RGBDSequenceUtil
 
 
 def main() -> None:
@@ -25,6 +25,11 @@ def main() -> None:
     parser.add_argument(
         "--output_dir", type=str,
         help="an optional directory into which to save the sequence"
+    )
+    parser.add_argument(
+        "--pool_empty_strategy", "-p", type=str, default="discard",
+        choices=("discard", "grow", "replace_random", "wait"),
+        help="the strategy to use when a frame message is received whilst a client handler's frame pool is empty"
     )
     args: dict = vars(parser.parse_args())
 
@@ -44,12 +49,18 @@ def main() -> None:
     )
 
     # Construct the mapping server.
-    with MappingServer(frame_decompressor=RGBDFrameMessageUtil.decompress_frame_message) as server:
+    with MappingServer(
+        frame_decompressor=RGBDFrameMessageUtil.decompress_frame_message,
+        pool_empty_strategy=PooledQueue.EPoolEmptyStrategy.make(args["pool_empty_strategy"])
+    ) as server:
         # Construct the image renderer.
         with OpenGLImageRenderer() as image_renderer:
             client_id: int = 0
             colour_image: Optional[np.ndarray] = None
-            depth_estimator: Optional[MonocularDepthEstimator] = None
+            depth_estimator: MonocularDepthEstimator = MonocularDepthEstimator(
+                "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar", debug=True
+            )
+            frame_idx: int = 0
             receiver: RGBDFrameReceiver = RGBDFrameReceiver()
 
             # Start the server.
@@ -74,8 +85,9 @@ def main() -> None:
 
                 # If the server has a frame from the client that has not yet been processed:
                 if server.has_frames_now(client_id):
-                    # Get the camera intrinsics from the server.
+                    # Get the camera intrinsics from the server, and pass them to the depth estimator.
                     intrinsics: Tuple[float, float, float, float] = server.get_intrinsics(client_id)[0]
+                    depth_estimator.set_intrinsics(GeometryUtil.intrinsics_to_matrix(intrinsics))
 
                     # Get the frame from the server.
                     server.get_frame(client_id, receiver)
@@ -84,20 +96,12 @@ def main() -> None:
 
                     # If an output directory has been specified, save the frame to disk.
                     if output_dir is not None:
-                        frame_idx: int = receiver.get_frame_index()
                         depth_image: np.ndarray = ImageUtil.from_short_depth(receiver.get_depth_image())
                         RGBDSequenceUtil.save_frame(
                             frame_idx, output_dir, colour_image, depth_image, tracker_w_t_c,
                             colour_intrinsics=intrinsics, depth_intrinsics=intrinsics
                         )
-
-                    # If the depth estimator hasn't been constructed yet, construct it now.
-                    if depth_estimator is None:
-                        depth_estimator = MonocularDepthEstimator(
-                            "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar",
-                            GeometryUtil.intrinsics_to_matrix(intrinsics),
-                            debug=True
-                        )
+                        frame_idx += 1
 
                     # Try to estimate a depth image for the frame.
                     estimated_depth_image: Optional[np.ndarray] = depth_estimator.estimate_depth(

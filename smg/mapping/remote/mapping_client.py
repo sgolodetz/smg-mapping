@@ -18,18 +18,21 @@ class MappingClient:
     # CONSTRUCTOR
 
     def __init__(self, endpoint: Tuple[str, int] = ("127.0.0.1", 7851), *, timeout: int = 10,
-                 frame_compressor: Optional[Callable[[FrameMessage], FrameMessage]] = None):
+                 frame_compressor: Optional[Callable[[FrameMessage], FrameMessage]] = None,
+                 pool_empty_strategy: PooledQueue.EPoolEmptyStrategy = PooledQueue.PES_DISCARD):
         """
         Construct a mapping client.
 
         :param endpoint:            The server host and port, e.g. ("127.0.0.1", 7851).
         :param timeout:             The socket timeout to use (in seconds).
         :param frame_compressor:    An optional function to use to compress frames prior to transmission.
+        :param pool_empty_strategy: The strategy to use when an attempt is made to send a frame message whilst the
+                                    pool of frames associated with the frame message queue is empty.
         """
         self.__alive: bool = False
         self.__calib_msg: Optional[CalibrationMessage] = None
         self.__frame_compressor: Optional[Callable[[FrameMessage], FrameMessage]] = frame_compressor
-        self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage](PooledQueue.PES_DISCARD)
+        self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage](pool_empty_strategy)
         self.__message_sender_thread: Optional[threading.Thread] = None
         self.__should_terminate: threading.Event = threading.Event()
 

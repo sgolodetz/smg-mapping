@@ -27,7 +27,8 @@ class MappingClientHandler:
     # CONSTRUCTOR
 
     def __init__(self, client_id: int, sock: socket.SocketType, should_terminate: threading.Event, *,
-                 frame_decompressor: Optional[Callable[[FrameMessage], FrameMessage]] = None):
+                 frame_decompressor: Optional[Callable[[FrameMessage], FrameMessage]] = None,
+                 pool_empty_strategy: PooledQueue.EPoolEmptyStrategy = PooledQueue.PES_DISCARD):
         """
         Construct a mapping client handler.
 
@@ -35,12 +36,14 @@ class MappingClientHandler:
         :param sock:                The socket used to communicate with the client.
         :param should_terminate:    Whether or not the server should terminate (read-only, set within the server).
         :param frame_decompressor:  An optional function to use to decompress received frames.
+        :param pool_empty_strategy: The strategy to use when a frame message is received whilst the pool of frames
+                                    associated with the frame message queue is empty.
         """
         self.__calib_msg: Optional[CalibrationMessage] = None
         self.__client_id: int = client_id
         self.__connection_ok: bool = True
         self.__frame_decompressor: Optional[Callable[[FrameMessage], FrameMessage]] = frame_decompressor
-        self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage](PooledQueue.PES_DISCARD)
+        self.__frame_message_queue: PooledQueue[FrameMessage] = PooledQueue[FrameMessage](pool_empty_strategy)
         self.__lock: threading.Lock = threading.Lock()
         self.__should_terminate: threading.Event = should_terminate
         self.__sock: socket.SocketType = sock
