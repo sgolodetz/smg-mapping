@@ -22,7 +22,7 @@ def main() -> None:
     try:
         with MappingClient(
             frame_compressor=RGBDFrameMessageUtil.compress_frame_message,
-            pool_empty_strategy=PooledQueue.PES_GROW
+            pool_empty_strategy=PooledQueue.PES_WAIT
         ) as client:
             # Try to load the camera parameters for the sequence. If this fails, raise an exception.
             calib: Optional[CameraParameters] = RGBDSequenceUtil.try_load_calibration(sequence_dir)
