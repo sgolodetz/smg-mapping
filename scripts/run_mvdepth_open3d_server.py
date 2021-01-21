@@ -57,7 +57,9 @@ def main() -> None:
         with OpenGLImageRenderer() as image_renderer:
             client_id: int = 0
             colour_image: Optional[np.ndarray] = None
-            depth_estimator: Optional[MonocularDepthEstimator] = None
+            depth_estimator: MonocularDepthEstimator = MonocularDepthEstimator(
+                "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar", debug=True
+            )
             receiver: RGBDFrameReceiver = RGBDFrameReceiver()
 
             # Start the server.
@@ -82,8 +84,9 @@ def main() -> None:
 
                 # If the server has a frame from the client that has not yet been processed:
                 if server.has_frames_now(client_id):
-                    # Get the camera intrinsics from the server.
+                    # Get the camera intrinsics from the server, and pass them to the depth estimator.
                     intrinsics: Tuple[float, float, float, float] = server.get_intrinsics(client_id)[0]
+                    depth_estimator.set_intrinsics(GeometryUtil.intrinsics_to_matrix(intrinsics))
 
                     # Get the frame from the server.
                     server.get_frame(client_id, receiver)
@@ -97,14 +100,6 @@ def main() -> None:
                         RGBDSequenceUtil.save_frame(
                             frame_idx, output_dir, colour_image, depth_image, tracker_w_t_c,
                             colour_intrinsics=intrinsics, depth_intrinsics=intrinsics
-                        )
-
-                    # If the depth estimator hasn't been constructed yet, construct it now.
-                    if depth_estimator is None:
-                        depth_estimator = MonocularDepthEstimator(
-                            "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar",
-                            GeometryUtil.intrinsics_to_matrix(intrinsics),
-                            debug=True
                         )
 
                     # Try to estimate a depth image for the frame.

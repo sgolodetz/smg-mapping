@@ -95,9 +95,8 @@ def main() -> None:
                 # If the depth estimator hasn't been constructed yet, construct it now.
                 if depth_estimator is None:
                     depth_estimator = MonocularDepthEstimator(
-                        "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar",
-                        GeometryUtil.intrinsics_to_matrix(intrinsics)
-                    )
+                        "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar"
+                    ).set_intrinsics(GeometryUtil.intrinsics_to_matrix(intrinsics))
 
                 # Try to estimate a depth image for the frame.
                 estimated_depth_image: Optional[np.ndarray] = depth_estimator.estimate_depth(
