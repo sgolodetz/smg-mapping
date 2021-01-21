@@ -60,6 +60,7 @@ def main() -> None:
             depth_estimator: MonocularDepthEstimator = MonocularDepthEstimator(
                 "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar", debug=True
             )
+            frame_idx: int = 0
             receiver: RGBDFrameReceiver = RGBDFrameReceiver()
 
             # Start the server.
@@ -95,12 +96,12 @@ def main() -> None:
 
                     # If an output directory has been specified, save the frame to disk.
                     if output_dir is not None:
-                        frame_idx: int = receiver.get_frame_index()
                         depth_image: np.ndarray = ImageUtil.from_short_depth(receiver.get_depth_image())
                         RGBDSequenceUtil.save_frame(
                             frame_idx, output_dir, colour_image, depth_image, tracker_w_t_c,
                             colour_intrinsics=intrinsics, depth_intrinsics=intrinsics
                         )
+                        frame_idx += 1
 
                     # Try to estimate a depth image for the frame.
                     estimated_depth_image: Optional[np.ndarray] = depth_estimator.estimate_depth(

@@ -35,8 +35,9 @@ def main() -> None:
                 calib.get_intrinsics("colour"), calib.get_intrinsics("depth")
             ))
 
-            frame_idx: int = 0
             colour_image: Optional[np.ndarray] = None
+            frame_idx: int = 0
+            pause: bool = True
 
             # Until the user wants to quit:
             while True:
@@ -63,8 +64,17 @@ def main() -> None:
                 # Show the most recent colour image (if any) so that the user can see what's going on.
                 if colour_image is not None:
                     cv2.imshow("Disk RGB-D Client", colour_image)
-                    c: int = cv2.waitKey(1)
-                    if c == ord('q'):
+
+                    if pause:
+                        c = cv2.waitKey()
+                    else:
+                        c = cv2.waitKey(1)
+
+                    if c == ord('b'):
+                        pause = False
+                    elif c == ord('n'):
+                        pause = True
+                    elif c == ord('q'):
                         break
     except RuntimeError as e:
         print(e)
