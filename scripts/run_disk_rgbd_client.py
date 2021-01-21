@@ -5,7 +5,7 @@ from argparse import ArgumentParser
 from typing import Any, Dict, Optional
 
 from smg.mapping.remote import MappingClient, RGBDFrameMessageUtil
-from smg.utility import CameraParameters, ImageUtil, RGBDSequenceUtil
+from smg.utility import CameraParameters, ImageUtil, PooledQueue, RGBDSequenceUtil
 
 
 def main() -> None:
@@ -20,7 +20,10 @@ def main() -> None:
     sequence_dir: str = args["sequence_dir"]
 
     try:
-        with MappingClient(frame_compressor=RGBDFrameMessageUtil.compress_frame_message) as client:
+        with MappingClient(
+            frame_compressor=RGBDFrameMessageUtil.compress_frame_message,
+            pool_empty_strategy=PooledQueue.PES_GROW
+        ) as client:
             # Try to load the camera parameters for the sequence. If this fails, raise an exception.
             calib: Optional[CameraParameters] = RGBDSequenceUtil.try_load_calibration(sequence_dir)
             if calib is None:

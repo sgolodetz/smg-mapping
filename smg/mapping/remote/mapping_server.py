@@ -6,6 +6,8 @@ import threading
 from select import select
 from typing import Callable, Dict, Optional, List, Set, Tuple
 
+from smg.utility import PooledQueue
+
 from .mapping_client_handler import MappingClientHandler
 from .frame_message import FrameMessage
 
@@ -16,17 +18,21 @@ class MappingServer:
     # CONSTRUCTOR
 
     def __init__(self, port: int = 7851, *,
-                 frame_decompressor: Optional[Callable[[FrameMessage], FrameMessage]] = None):
+                 frame_decompressor: Optional[Callable[[FrameMessage], FrameMessage]] = None,
+                 pool_empty_strategy: PooledQueue.EPoolEmptyStrategy = PooledQueue.PES_DISCARD):
         """
         Construct a mapping server.
 
         :param port:                The port on which the server should listen for connections.
         :param frame_decompressor:  An optional function to use to decompress received frames.
+        :param pool_empty_strategy: The strategy to use when a frame message is received by a client handler whilst
+                                    the pool of frames associated with its frame message queue is empty.
         """
         self.__client_handlers: Dict[int, MappingClientHandler] = {}
         self.__finished_clients: Set[int] = set()
         self.__frame_decompressor: Optional[Callable[[FrameMessage], FrameMessage]] = frame_decompressor
         self.__next_client_id: int = 0
+        self.__pool_empty_strategy: PooledQueue.EPoolEmptyStrategy = pool_empty_strategy
         self.__port: int = port
         self.__server_thread: threading.Thread = threading.Thread(target=self.__run_server)
         self.__should_terminate: threading.Event = threading.Event()
@@ -218,7 +224,8 @@ class MappingServer:
                     with self.__lock:
                         client_handler: MappingClientHandler = MappingClientHandler(
                             self.__next_client_id, client_sock, self.__should_terminate,
-                            frame_decompressor=self.__frame_decompressor
+                            frame_decompressor=self.__frame_decompressor,
+                            pool_empty_strategy=self.__pool_empty_strategy
                         )
                         client_thread: threading.Thread = threading.Thread(
                             target=self.__handle_client, args=[client_handler]

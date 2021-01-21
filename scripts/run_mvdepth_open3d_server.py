@@ -14,7 +14,7 @@ from smg.mapping.remote import MappingServer, RGBDFrameMessageUtil, RGBDFrameRec
 from smg.mvdepthnet import MonocularDepthEstimator
 from smg.open3d import ReconstructionUtil, VisualisationUtil
 from smg.opengl import OpenGLImageRenderer
-from smg.utility import GeometryUtil, ImageUtil, RGBDSequenceUtil
+from smg.utility import GeometryUtil, ImageUtil, PooledQueue, RGBDSequenceUtil
 
 
 def main() -> None:
@@ -25,6 +25,11 @@ def main() -> None:
     parser.add_argument(
         "--output_dir", type=str,
         help="an optional directory into which to save the sequence"
+    )
+    parser.add_argument(
+        "--pool_empty_strategy", "-p", type=str, default="discard",
+        choices=("discard", "grow", "replace_random", "wait"),
+        help="the strategy to use when a frame message is received whilst a client handler's frame pool is empty"
     )
     args: dict = vars(parser.parse_args())
 
@@ -44,7 +49,10 @@ def main() -> None:
     )
 
     # Construct the mapping server.
-    with MappingServer(frame_decompressor=RGBDFrameMessageUtil.decompress_frame_message) as server:
+    with MappingServer(
+        frame_decompressor=RGBDFrameMessageUtil.decompress_frame_message,
+        pool_empty_strategy=PooledQueue.EPoolEmptyStrategy.make(args["pool_empty_strategy"])
+    ) as server:
         # Construct the image renderer.
         with OpenGLImageRenderer() as image_renderer:
             client_id: int = 0
