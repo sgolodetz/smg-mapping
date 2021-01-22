@@ -57,21 +57,31 @@ def main() -> None:
                     colour_image, tracker_w_t_c
                 )
 
-                # Show the ground truth and estimated depth images, if they're both valid.
+                # If depth estimation was successful:
                 if depth_image is not None and estimated_depth_image is not None:
+                    # Show the ground truth and estimated depth images, as well as an L1 error image between them.
                     cv2.imshow("Depth Image", depth_image / 2)
                     cv2.imshow("Estimated Depth Image", estimated_depth_image / 2)
+
                     error_image: np.ndarray = np.abs(estimated_depth_image - depth_image)
                     error_image = np.where(depth_image > 0.0, error_image, 0.0)
                     error_image = np.where(estimated_depth_image > 0.0, error_image, 0.0)
                     cv2.imshow("L1 Error Image", error_image)
+
+                    # Compute the depth estimation density, as well as the max and mean L1 errors.
+                    density: float = 100 * np.count_nonzero(estimated_depth_image) / np.product(depth_image.shape)
                     max_error: float = np.max(error_image)
                     mean_error: float = np.sum(error_image) / np.count_nonzero(error_image)
-                    density: float = 100 * np.count_nonzero(estimated_depth_image) / np.product(depth_image.shape)
+
+                    # Update the sums of these metrics so that their averages can be calculated over the sequence.
+                    sum_density += density
                     sum_max_error += max_error
                     sum_mean_error += mean_error
-                    sum_density += density
+
+                    # Increment the frame count.
                     frame_count += 1
+
+                    # Print out the computed metrics, as well as their averages over the sequence so far.
                     print(
                         f"Max Error: {max_error}; Mean Error: {mean_error}; Density: {density}%; "
                         f"Average Max Error: {sum_max_error / frame_count}; "
