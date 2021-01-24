@@ -78,6 +78,11 @@ def main() -> None:
                         mesh: o3d.geometry.TriangleMesh = ReconstructionUtil.make_mesh(tsdf, print_progress=True)
                         VisualisationUtil.visualise_geometries([grid, mesh])
 
+                        # noinspection PyTypeChecker
+                        o3d.io.write_triangle_mesh(
+                            "C:/spaint/build/bin/apps/spaintgui/meshes/smglib.ply", mesh, print_progress=True
+                        )
+
                         # Shut down pygame, and forcibly exit the program.
                         pygame.quit()
                         # noinspection PyProtectedMember
