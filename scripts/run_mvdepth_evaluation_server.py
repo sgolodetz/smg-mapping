@@ -6,7 +6,7 @@ from typing import Optional, Tuple
 
 from smg.mapping.remote import MappingServer, RGBDFrameMessageUtil, RGBDFrameReceiver
 from smg.mvdepthnet import MonocularDepthEstimator
-from smg.utility import GeometryUtil, ImageUtil, PooledQueue
+from smg.utility import GeometryUtil, PooledQueue
 
 
 def main() -> None:
@@ -49,7 +49,7 @@ def main() -> None:
                 # Get the frame from the server.
                 server.get_frame(client_id, receiver)
                 colour_image: np.ndarray = receiver.get_rgb_image()
-                depth_image: np.ndarray = ImageUtil.from_short_depth(receiver.get_depth_image())
+                depth_image: np.ndarray = receiver.get_depth_image()
                 tracker_w_t_c: np.ndarray = receiver.get_pose()
 
                 # Try to estimate a depth image for the frame.

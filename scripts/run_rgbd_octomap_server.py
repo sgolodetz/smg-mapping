@@ -14,7 +14,6 @@ from smg.opengl import OpenGLUtil
 from smg.pyoctomap import *
 from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
-from smg.utility import ImageUtil
 
 
 def main() -> None:
@@ -84,9 +83,7 @@ def main() -> None:
                 pose = receiver.get_pose()
 
                 # Use the depth image and pose to make an Octomap point cloud.
-                pcd: Pointcloud = OctomapUtil.make_point_cloud(
-                    ImageUtil.from_short_depth(receiver.get_depth_image()), pose, intrinsics
-                )
+                pcd: Pointcloud = OctomapUtil.make_point_cloud(receiver.get_depth_image(), pose, intrinsics)
 
                 # Fuse the point cloud into the octree.
                 start = timer()
