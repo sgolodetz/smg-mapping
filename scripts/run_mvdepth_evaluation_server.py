@@ -15,7 +15,7 @@ def main() -> None:
     # Parse any command-line arguments.
     parser = ArgumentParser()
     parser.add_argument(
-        "--pool_empty_strategy", "-p", type=str, default="discard",
+        "--pool_empty_strategy", "-p", type=str, default="wait",
         choices=("discard", "grow", "replace_random", "wait"),
         help="the strategy to use when a frame message is received whilst a client handler's frame pool is empty"
     )
