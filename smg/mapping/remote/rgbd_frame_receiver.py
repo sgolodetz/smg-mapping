@@ -2,6 +2,8 @@ import numpy as np
 
 from typing import Optional
 
+from smg.utility import ImageUtil
+
 from .frame_message import FrameMessage
 from .rgbd_frame_message_util import RGBDFrameMessageUtil
 
@@ -29,8 +31,9 @@ class RGBDFrameReceiver:
 
         :param msg: The frame message.
         """
-        self.__frame_idx, self.__rgb_image, self.__depth_image, self.__pose = \
+        self.__frame_idx, self.__rgb_image, short_depth_image, self.__pose = \
             RGBDFrameMessageUtil.extract_frame_data(msg)
+        self.__depth_image = ImageUtil.from_short_depth(short_depth_image)
 
     # PUBLIC METHODS
 
