@@ -64,14 +64,17 @@ def main() -> None:
                     cv2.imshow("Estimated Depth Image", estimated_depth_image / 2)
 
                     error_image: np.ndarray = np.abs(estimated_depth_image - depth_image)
-                    error_image = np.where(depth_image > 0.0, error_image, 0.0)
-                    error_image = np.where(estimated_depth_image > 0.0, error_image, 0.0)
+                    valid_depths_mask: np.ndarray = np.where(
+                        (depth_image > 0.0) & (estimated_depth_image > 0.0), 255, 0
+                    ).astype(np.uint8)
+                    error_image = np.where(valid_depths_mask > 0, error_image, 0.0)
                     cv2.imshow("L1 Error Image", error_image)
 
                     # Compute the depth estimation density, as well as the max and mean L1 errors.
                     density: float = 100 * np.count_nonzero(estimated_depth_image) / np.product(depth_image.shape)
                     max_error: float = np.max(error_image)
-                    mean_error: float = np.sum(error_image) / np.count_nonzero(error_image)
+                    valid_depths_count: int = np.count_nonzero(valid_depths_mask)
+                    mean_error: float = np.sum(error_image) / valid_depths_count if valid_depths_count > 0 else 0.0
 
                     # Update the sums of these metrics so that their averages can be calculated over the sequence.
                     sum_density += density
