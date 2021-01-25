@@ -78,7 +78,7 @@ def main() -> None:
     # Load in the positions of the four marker corners as estimated during the ground-truth reconstruction.
     fiducials: Dict[str, np.ndarray] = load_fiducials(args["fiducials_filename"])
 
-    # Stack these positions into a 4x3 matrix.
+    # Stack these positions into a 3x4 matrix.
     p: np.ndarray = np.column_stack([
         fiducials["0_0"],
         fiducials["0_1"],
@@ -86,7 +86,7 @@ def main() -> None:
         fiducials["0_3"]
     ])
 
-    # Make another 4x3 matrix containing the world-space positions of the four marker corners.
+    # Make another 3x4 matrix containing the world-space positions of the four marker corners.
     height: float = 1.5  # 1.5m (the height of the centre of the printed marker)
     offset: float = 0.0705  # 7.05cm (half the width of the printed marker)
 
