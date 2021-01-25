@@ -101,7 +101,7 @@ def main() -> None:
 
                     # If an output directory has been specified, save the frame to disk.
                     if output_dir is not None:
-                        depth_image: np.ndarray = ImageUtil.from_short_depth(receiver.get_depth_image())
+                        depth_image: np.ndarray = receiver.get_depth_image()
                         RGBDSequenceUtil.save_frame(
                             frame_idx, output_dir, colour_image, depth_image, tracker_w_t_c,
                             colour_intrinsics=intrinsics, depth_intrinsics=intrinsics

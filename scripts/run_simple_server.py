@@ -19,7 +19,7 @@ def main() -> None:
                 # Get it and show it. Scale the depth image to make it visible.
                 server.get_frame(client_id, receiver)
                 cv2.imshow("Received RGB Image", receiver.get_rgb_image())
-                cv2.imshow("Received Depth Image", receiver.get_depth_image() * 10)
+                cv2.imshow("Received Depth Image", receiver.get_depth_image() / 2)
                 seen_frame = True
 
             # If we've ever seen a frame:
