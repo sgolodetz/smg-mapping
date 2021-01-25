@@ -70,7 +70,20 @@ def main() -> None:
     )
     mesh = mesh.transform(transform)
 
-    VisualisationUtil.visualise_geometry(mesh)
+    my_mesh: o3d.geometry.TrianglMesh = o3d.io.read_triangle_mesh(
+        "C:/spaint/build/bin/apps/spaintgui/meshes/smglib.ply"
+    )
+
+    o3d.io.write_triangle_mesh(
+        "C:/spaint/build/bin/apps/spaintgui/meshes/groundtruth.ply", mesh
+    )
+
+    # mesh.paint_uniform_color((0.0, 1.0, 0.0))
+    # my_mesh.paint_uniform_color((1.0, 0.0, 0.0))
+
+    # VisualisationUtil.visualise_geometry(mesh)
+    # VisualisationUtil.visualise_geometry(my_mesh)
+    VisualisationUtil.visualise_geometries([mesh, my_mesh])
 
 
 if __name__ == "__main__":
