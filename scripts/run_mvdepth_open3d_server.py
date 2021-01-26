@@ -8,7 +8,7 @@ import pygame
 from argparse import ArgumentParser
 from OpenGL.GL import *
 from timeit import default_timer as timer
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from smg.mapping.remote import MappingServer, RGBDFrameMessageUtil, RGBDFrameReceiver
 from smg.mvdepthnet import MonocularDepthEstimator
@@ -35,10 +35,15 @@ def main() -> None:
         "--save_mesh", action="store_true",
         help="whether to save the mesh into the output directory as well as the frames"
     )
+    parser.add_argument(
+        "--show_keyframes", action="store_true",
+        help="whether to visualise the MVDepth keyframes"
+    )
     args: dict = vars(parser.parse_args())
 
     output_dir: Optional[str] = args["output_dir"]
     save_mesh: bool = args["save_mesh"]
+    show_keyframes: bool = args["show_keyframes"]
 
     # Initialise PyGame and create the window.
     pygame.init()
@@ -81,7 +86,16 @@ def main() -> None:
                         grid: o3d.geometry.LineSet = VisualisationUtil.make_voxel_grid(
                             [-2, -2, -2], [2, 0, 2], [1, 1, 1]
                         )
-                        VisualisationUtil.visualise_geometries([mesh, grid])
+                        to_visualise: List[o3d.geometry.Geometry] = [mesh, grid]
+
+                        # If requested, also show the MVDepth keyframes.
+                        if show_keyframes:
+                            keyframes: List[Tuple[np.ndarray, np.ndarray]] = depth_estimator.get_keyframes()
+                            to_visualise += [
+                                VisualisationUtil.make_axes(pose, size=0.01) for _, pose in keyframes
+                            ]
+
+                        VisualisationUtil.visualise_geometries(to_visualise)
 
                         # If requested, save the mesh.
                         if output_dir is not None and save_mesh:
