@@ -23,7 +23,7 @@ def main() -> None:
     # Parse any command-line arguments.
     parser = ArgumentParser()
     parser.add_argument(
-        "--output_dir", type=str,
+        "--output_dir", "-o", type=str,
         help="an optional directory into which to save the sequence"
     )
     parser.add_argument(
@@ -31,9 +31,14 @@ def main() -> None:
         choices=("discard", "grow", "replace_random", "wait"),
         help="the strategy to use when a frame message is received whilst a client handler's frame pool is empty"
     )
+    parser.add_argument(
+        "--save_mesh", action="store_true",
+        help="whether to save the mesh into the output directory as well as the frames"
+    )
     args: dict = vars(parser.parse_args())
 
     output_dir: Optional[str] = args["output_dir"]
+    save_mesh: bool = args["save_mesh"]
 
     # Initialise PyGame and create the window.
     pygame.init()
@@ -71,12 +76,17 @@ def main() -> None:
                 for event in pygame.event.get():
                     # If the user wants to quit:
                     if event.type == pygame.QUIT:
-                        # Visualise the TSDF.
+                        # Convert the TSDF to a mesh, and visualise it alongside a voxel grid for evaluation purposes.
+                        mesh: o3d.geometry.TriangleMesh = ReconstructionUtil.make_mesh(tsdf, print_progress=True)
                         grid: o3d.geometry.LineSet = VisualisationUtil.make_voxel_grid(
                             [-2, -2, -2], [2, 0, 2], [1, 1, 1]
                         )
-                        mesh: o3d.geometry.TriangleMesh = ReconstructionUtil.make_mesh(tsdf, print_progress=True)
-                        VisualisationUtil.visualise_geometries([grid, mesh])
+                        VisualisationUtil.visualise_geometries([mesh, grid])
+
+                        # If requested, save the mesh.
+                        if output_dir is not None and save_mesh:
+                            # noinspection PyTypeChecker
+                            o3d.io.write_triangle_mesh(os.path.join(output_dir, "mesh.ply"), mesh, print_progress=True)
 
                         # Shut down pygame, and forcibly exit the program.
                         pygame.quit()
