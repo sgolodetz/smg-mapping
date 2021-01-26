@@ -1,5 +1,6 @@
 import numpy as np
 import open3d as o3d
+import os
 
 from argparse import ArgumentParser
 from typing import Dict, List, Optional
@@ -12,13 +13,11 @@ def main() -> None:
     # Parse any command-line arguments.
     parser = ArgumentParser()
     parser.add_argument(
-        "--fiducials_filename", "-f", type=str,  # required=True,
-        default="C:/spaint/build/bin/apps/spaintgui/meshes/fiducials-20210124T214842.txt",
+        "--fiducials_filename", "-f", type=str, default="fiducials-20210124T214842.txt",
         help="the name of the fiducials file"
     )
     parser.add_argument(
-        "--gt_filename", "-g", type=str,  # required=True,
-        default="C:/spaint/build/bin/apps/spaintgui/meshes/spaint-20210124T214842_World.ply",
+        "--gt_filename", "-g", type=str, default="spaint-20210124T214842_World.ply",
         help="the name of the ground-truth mesh file"
     )
     parser.add_argument(
@@ -26,17 +25,15 @@ def main() -> None:
         help="the rendering style to use for the ground-truth mesh"
     )
     parser.add_argument(
-        "--input_filename", "-i", type=str,  # required=True,
-        default="C:/spaint/build/bin/apps/spaintgui/meshes/smglib.ply",
+        "--input_filename", "-i", type=str, default="smglib-20210124T214842.ply",
         help="the name of the file containing the mesh to be evaluated"
     )
     parser.add_argument(
-        "--input_render_style", type=str, choices=("hidden", "normal", "uniform"), default="normal",
+        "--input_render_style", type=str, choices=("hidden", "normal", "uniform"), default="uniform",
         help="the rendering style to use for the input mesh"
     )
     parser.add_argument(
         "--output_filename", "-o", type=str,
-        default="C:/spaint/build/bin/apps/spaintgui/meshes/groundtruth.ply",
         help="the name of the file to which to save the transformed ground-truth mesh (if any)"
     )
     parser.add_argument(
@@ -45,11 +42,18 @@ def main() -> None:
     )
     args: dict = vars(parser.parse_args())
 
+    folder: str = "C:/spaint/build/bin/apps/spaintgui/meshes"
+    fiducials_filename: str = os.path.join(folder, args["fiducials_filename"])
+    gt_filename: str = os.path.join(folder, args["gt_filename"])
+    input_filename: str = os.path.join(folder, args["input_filename"])
+    output_filename: Optional[str] = os.path.join(folder, args["output_filename"]) \
+        if args["output_filename"] is not None else None
+
     # Read in the mesh we want to evaluate, which should be metric and in world space.
-    input_mesh: o3d.geometry.TriangleMesh = o3d.io.read_triangle_mesh(args["input_filename"])
+    input_mesh: o3d.geometry.TriangleMesh = o3d.io.read_triangle_mesh(input_filename)
 
     # Load in the positions of the four marker corners as estimated during the ground-truth reconstruction.
-    fiducials: Dict[str, np.ndarray] = FiducialUtil.load_fiducials(args["fiducials_filename"])
+    fiducials: Dict[str, np.ndarray] = FiducialUtil.load_fiducials(fiducials_filename)
 
     # Stack these positions into a 3x4 matrix.
     p: np.ndarray = np.column_stack([
@@ -74,11 +78,10 @@ def main() -> None:
     transform: np.ndarray = GeometryUtil.estimate_rigid_transform(p, q)
 
     # Read in the ground-truth mesh, and transform it into world space using the estimated transformation.
-    gt_mesh: o3d.geometry.TriangleMesh = o3d.io.read_triangle_mesh(args["gt_filename"])
+    gt_mesh: o3d.geometry.TriangleMesh = o3d.io.read_triangle_mesh(gt_filename)
     gt_mesh = gt_mesh.transform(transform)
 
     # If requested, save the transformed ground-truth mesh to disk for later use.
-    output_filename: Optional[str] = args["output_filename"]
     if output_filename is not None:
         # noinspection PyTypeChecker
         o3d.io.write_triangle_mesh(output_filename, gt_mesh)
