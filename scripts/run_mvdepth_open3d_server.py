@@ -10,6 +10,7 @@ from OpenGL.GL import *
 from timeit import default_timer as timer
 from typing import List, Optional, Tuple
 
+from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
 from smg.mapping.remote import MappingServer, RGBDFrameMessageUtil, RGBDFrameReceiver
 from smg.mvdepthnet import MonocularDepthEstimator
 from smg.open3d import ReconstructionUtil, VisualisationUtil
@@ -87,6 +88,18 @@ def main() -> None:
                             [-2, -2, -2], [2, 0, 2], [1, 1, 1]
                         )
                         to_visualise: List[o3d.geometry.Geometry] = [mesh, grid]
+
+                        segmenter: InstanceSegmenter = InstanceSegmenter.make_mask_rcnn()
+                        detector: ObjectDetector3D = ObjectDetector3D(segmenter)
+
+                        objects: List[ObjectDetector3D.Object3D] = detector.detect_objects(
+                            colour_image, estimated_depth_image, tracker_w_t_c, server.get_intrinsics(client_id)[0]
+                        )
+
+                        for obj in objects:
+                            box: o3d.geometry.AxisAlignedBoundingBox = o3d.geometry.AxisAlignedBoundingBox(*obj.box_3d)
+                            box.color = (1.0, 0.0, 0.0)
+                            to_visualise.append(box)
 
                         # If requested, also show the MVDepth keyframes.
                         if show_keyframes:
