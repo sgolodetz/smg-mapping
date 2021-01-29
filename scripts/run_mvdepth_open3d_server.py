@@ -1,3 +1,4 @@
+import detectron2
 import numpy as np
 import open3d as o3d
 import os
@@ -6,6 +7,7 @@ os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame
 
 from argparse import ArgumentParser
+from detectron2.structures import Instances
 from OpenGL.GL import *
 from timeit import default_timer as timer
 from typing import List, Optional, Tuple
@@ -72,7 +74,10 @@ def main() -> None:
                 "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar", debug=True
             )
             frame_idx: int = 0
+            instance_segmenter: InstanceSegmenter = InstanceSegmenter.make_mask_rcnn()
+            object_detector: ObjectDetector3D = ObjectDetector3D(instance_segmenter)
             receiver: RGBDFrameReceiver = RGBDFrameReceiver()
+            segmented_image: Optional[np.ndarray] = None
 
             # Start the server.
             server.start()
@@ -89,10 +94,7 @@ def main() -> None:
                         )
                         to_visualise: List[o3d.geometry.Geometry] = [mesh, grid]
 
-                        segmenter: InstanceSegmenter = InstanceSegmenter.make_mask_rcnn()
-                        detector: ObjectDetector3D = ObjectDetector3D(segmenter)
-
-                        objects: List[ObjectDetector3D.Object3D] = detector.detect_objects(
+                        objects: List[ObjectDetector3D.Object3D] = object_detector.detect_objects(
                             colour_image, estimated_depth_image, tracker_w_t_c, server.get_intrinsics(client_id)[0]
                         )
 
@@ -164,15 +166,26 @@ def main() -> None:
                         )
 
                         end = timer()
-                        print(f"  - Time: {end - start}s")
+                        print(f"  - Fusion Time: {end - start}s")
+
+                        start = timer()
+
+                        # Find any 2D instances in the colour image.
+                        raw_instances: detectron2.structures.Instances = instance_segmenter.segment_raw(colour_image)
+
+                        end = timer()
+                        print(f"  - Segmentation Time: {end - start}s")
+
+                        # Draw the 2D instances so that they can be shown to the user.
+                        segmented_image = instance_segmenter.draw_raw_instances(raw_instances, colour_image)
 
                 # Clear the colour buffer.
                 glClearColor(1.0, 1.0, 1.0, 1.0)
                 glClear(GL_COLOR_BUFFER_BIT)
 
-                # If a colour image is available, draw it.
-                if colour_image is not None:
-                    image_renderer.render_image(ImageUtil.flip_channels(colour_image))
+                # If a segmented image is available, draw it.
+                if segmented_image is not None:
+                    image_renderer.render_image(ImageUtil.flip_channels(segmented_image))
 
                 # Swap the front and back buffers.
                 pygame.display.flip()
