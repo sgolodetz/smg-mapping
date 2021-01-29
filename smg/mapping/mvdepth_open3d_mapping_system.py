@@ -1,10 +1,13 @@
 import cv2
+import detectron2
 import numpy as np
 import open3d as o3d
 import threading
 
 from timeit import default_timer as timer
 from typing import Optional, Tuple
+
+from detectron2.structures import Instances
 
 from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
 from smg.mapping.remote import MappingServer, RGBDFrameReceiver
@@ -31,6 +34,12 @@ class MVDepthOpen3DMappingSystem:
             color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8
         )
 
+        self.__detection_lock = threading.Lock()
+        self.__detection_input_image: Optional[np.ndarray] = None
+        self.__detection_input_ready = threading.Condition(self.__detection_lock)
+        self.__detection_output_image: Optional[np.ndarray] = None
+        self.__detection_required: bool = False
+
         self.__detection_thread: threading.Thread = threading.Thread(target=self.__run_detection)
 
     # SPECIAL METHODS
@@ -52,7 +61,7 @@ class MVDepthOpen3DMappingSystem:
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
 
         # Start the detection thread.
-        # self.__detection_thread.start()
+        self.__detection_thread.start()
 
         # Until the mapping system should terminate:
         while not self.__should_terminate:
@@ -67,7 +76,7 @@ class MVDepthOpen3DMappingSystem:
                 colour_image = receiver.get_rgb_image()
                 tracker_w_t_c: np.ndarray = receiver.get_pose()
 
-                # # If an output directory has been specified, save the frame to disk.
+                # If an output directory has been specified, save the frame to disk.
                 if self.__output_dir is not None:
                     depth_image: np.ndarray = receiver.get_depth_image()
                     RGBDSequenceUtil.save_frame(
@@ -102,10 +111,22 @@ class MVDepthOpen3DMappingSystem:
                     end = timer()
                     print(f"  - Fusion Time: {end - start}s")
 
+                    # TODO: Comment here.
+                    acquired: bool = self.__detection_lock.acquire(blocking=False)
+                    if acquired:
+                        try:
+                            if self.__detection_output_image is not None:
+                                cv2.imshow("Detection Output Image", self.__detection_output_image)
+                            self.__detection_input_image = colour_image.copy()
+                            self.__detection_required = True
+                            self.__detection_input_ready.notify()
+                        finally:
+                            self.__detection_lock.release()
+
             # TODO: Comment here.
             if colour_image is not None:
                 # TODO: Comment here.
-                cv2.imshow("Colour Image", colour_image)
+                cv2.imshow("MVDepth -> Open3D Mapping System", colour_image)
                 c: int = cv2.waitKey(1)
 
                 # TODO: Comment here.
@@ -114,16 +135,42 @@ class MVDepthOpen3DMappingSystem:
 
     def terminate(self) -> o3d.pipelines.integration.ScalableTSDFVolume:
         if not self.__should_terminate:
+            # TODO: Comment here.
             self.__should_terminate = True
 
-            # TODO
+            # TODO: Comment here.
+            self.__detection_thread.join()
 
         return self.__tsdf
 
     # PRIVATE METHODS
 
     def __run_detection(self) -> None:
+        print("Starting object detector...", flush=True)
         instance_segmenter: InstanceSegmenter = InstanceSegmenter.make_mask_rcnn()
         object_detector: ObjectDetector3D = ObjectDetector3D(instance_segmenter)
+        print("Object detector started", flush=True)
 
-        pass
+        while not self.__should_terminate:
+            with self.__detection_lock:
+                while not self.__detection_required:
+                    self.__detection_input_ready.wait(0.1)
+                    if self.__should_terminate:
+                        return
+
+                start = timer()
+
+                # Find any 2D instances in the detection input image.
+                raw_instances: detectron2.structures.Instances = instance_segmenter.segment_raw(
+                    self.__detection_input_image
+                )
+
+                end = timer()
+                print(f"  - Segmentation Time: {end - start}s")
+
+                # Draw the 2D instances so that they can be shown to the user.
+                self.__detection_output_image = instance_segmenter.draw_raw_instances(
+                    raw_instances, self.__detection_input_image
+                )
+
+                self.__detection_required = False
