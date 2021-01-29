@@ -110,6 +110,7 @@ def main() -> None:
                                 VisualisationUtil.make_axes(pose, size=0.01) for _, pose in keyframes
                             ]
 
+                        # Run the Open3D visualiser.
                         VisualisationUtil.visualise_geometries(to_visualise)
 
                         # If requested, save the mesh.
