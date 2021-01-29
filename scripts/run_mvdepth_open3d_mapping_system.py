@@ -87,45 +87,6 @@ def main() -> None:
             # noinspection PyTypeChecker
             o3d.io.write_triangle_mesh(os.path.join(output_dir, "mesh.ply"), mesh, print_progress=True)
 
-            # # Process any PyGame events.
-            # for event in pygame.event.get():
-            #     # If the user wants to quit:
-            #     if event.type == pygame.QUIT:
-            #         # Convert the TSDF to a mesh, and visualise it alongside a voxel grid for evaluation purposes.
-            #         mesh: o3d.geometry.TriangleMesh = ReconstructionUtil.make_mesh(tsdf, print_progress=True)
-            #         grid: o3d.geometry.LineSet = VisualisationUtil.make_voxel_grid(
-            #             [-2, -2, -2], [2, 0, 2], [1, 1, 1]
-            #         )
-            #         to_visualise: List[o3d.geometry.Geometry] = [mesh, grid]
-            #
-            #         objects: List[ObjectDetector3D.Object3D] = object_detector.detect_objects(
-            #             colour_image, estimated_depth_image, tracker_w_t_c, server.get_intrinsics(client_id)[0]
-            #         )
-            #
-            #         for obj in objects:
-            #             box: o3d.geometry.AxisAlignedBoundingBox = o3d.geometry.AxisAlignedBoundingBox(*obj.box_3d)
-            #             box.color = (1.0, 0.0, 0.0)
-            #             to_visualise.append(box)
-            #
-            #         # If requested, also show the MVDepth keyframes.
-            #         if show_keyframes:
-            #             keyframes: List[Tuple[np.ndarray, np.ndarray]] = depth_estimator.get_keyframes()
-            #             to_visualise += [
-            #                 VisualisationUtil.make_axes(pose, size=0.01) for _, pose in keyframes
-            #             ]
-            #
-            #         VisualisationUtil.visualise_geometries(to_visualise)
-            #
-            #         # If requested, save the mesh.
-            #         if output_dir is not None and save_mesh:
-            #             # noinspection PyTypeChecker
-            #             o3d.io.write_triangle_mesh(os.path.join(output_dir, "mesh.ply"), mesh, print_progress=True)
-            #
-            #         # Shut down pygame, and forcibly exit the program.
-            #         pygame.quit()
-            #         # noinspection PyProtectedMember
-            #         os._exit(0)
-
 
 if __name__ == "__main__":
     main()
