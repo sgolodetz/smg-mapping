@@ -5,7 +5,7 @@ import open3d as o3d
 import threading
 
 from timeit import default_timer as timer
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from detectron2.structures import Instances
 
@@ -34,8 +34,13 @@ class MVDepthOpen3DMappingSystem:
             color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8
         )
 
+        self.__objects: List[ObjectDetector3D.Object3D] = []
+
         self.__detection_lock = threading.Lock()
-        self.__detection_input_image: Optional[np.ndarray] = None
+        self.__detection_colour_image: Optional[np.ndarray] = None
+        self.__detection_depth_image: Optional[np.ndarray] = None
+        self.__detection_pose: Optional[np.ndarray] = None
+        self.__detection_intrinsics: Optional[Tuple[float, float, float, float]] = None
         self.__detection_input_ready = threading.Condition(self.__detection_lock)
         self.__detection_output_image: Optional[np.ndarray] = None
         self.__detection_required: bool = False
@@ -54,7 +59,7 @@ class MVDepthOpen3DMappingSystem:
 
     # PUBLIC METHODS
 
-    def run(self) -> o3d.pipelines.integration.ScalableTSDFVolume:
+    def run(self) -> Tuple[o3d.pipelines.integration.ScalableTSDFVolume, List[ObjectDetector3D.Object3D]]:
         client_id: int = 0
         colour_image: Optional[np.ndarray] = None
         frame_idx: int = 0
@@ -117,7 +122,10 @@ class MVDepthOpen3DMappingSystem:
                         try:
                             if self.__detection_output_image is not None:
                                 cv2.imshow("Detection Output Image", self.__detection_output_image)
-                            self.__detection_input_image = colour_image.copy()
+                            self.__detection_colour_image = colour_image.copy()
+                            self.__detection_depth_image = estimated_depth_image.copy()
+                            self.__detection_pose = tracker_w_t_c.copy()
+                            self.__detection_intrinsics = intrinsics
                             self.__detection_required = True
                             self.__detection_input_ready.notify()
                         finally:
@@ -133,7 +141,7 @@ class MVDepthOpen3DMappingSystem:
                 if c == ord('v'):
                     return self.terminate()
 
-    def terminate(self) -> o3d.pipelines.integration.ScalableTSDFVolume:
+    def terminate(self) -> Tuple[o3d.pipelines.integration.ScalableTSDFVolume, List[ObjectDetector3D.Object3D]]:
         if not self.__should_terminate:
             # TODO: Comment here.
             self.__should_terminate = True
@@ -141,7 +149,7 @@ class MVDepthOpen3DMappingSystem:
             # TODO: Comment here.
             self.__detection_thread.join()
 
-        return self.__tsdf
+        return self.__tsdf, self.__objects
 
     # PRIVATE METHODS
 
@@ -162,7 +170,7 @@ class MVDepthOpen3DMappingSystem:
 
                 # Find any 2D instances in the detection input image.
                 raw_instances: detectron2.structures.Instances = instance_segmenter.segment_raw(
-                    self.__detection_input_image
+                    self.__detection_colour_image
                 )
 
                 end = timer()
@@ -170,7 +178,13 @@ class MVDepthOpen3DMappingSystem:
 
                 # Draw the 2D instances so that they can be shown to the user.
                 self.__detection_output_image = instance_segmenter.draw_raw_instances(
-                    raw_instances, self.__detection_input_image
+                    raw_instances, self.__detection_colour_image
+                )
+
+                # TODO: Comment here.
+                self.__objects += object_detector.lift_to_3d(
+                    instance_segmenter.parse_raw_instances(raw_instances), self.__detection_depth_image,
+                    self.__detection_pose, self.__detection_intrinsics
                 )
 
                 self.__detection_required = False

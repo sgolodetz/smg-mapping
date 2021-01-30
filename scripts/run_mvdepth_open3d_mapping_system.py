@@ -60,7 +60,7 @@ def main() -> None:
         server.start()
 
         # Run the mapping system.
-        tsdf: o3d.pipelines.integration.ScalableTSDFVolume = mapping_system.run()
+        tsdf, objects = mapping_system.run()
 
         # Close any OpenCV windows.
         cv2.destroyAllWindows()
@@ -71,6 +71,12 @@ def main() -> None:
             [-2, -2, -2], [2, 0, 2], [1, 1, 1]
         )
         to_visualise: List[o3d.geometry.Geometry] = [mesh, grid]
+
+        # TODO: Comment here.
+        for obj in objects:
+            box: o3d.geometry.AxisAlignedBoundingBox = o3d.geometry.AxisAlignedBoundingBox(*obj.box_3d)
+            box.color = (1.0, 0.0, 0.0)
+            to_visualise.append(box)
 
         # If requested, also show the MVDepth keyframes.
         if show_keyframes:
