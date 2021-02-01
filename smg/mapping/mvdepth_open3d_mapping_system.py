@@ -45,7 +45,7 @@ class MVDepthOpen3DMappingSystem:
         self.__detection_output_image: Optional[np.ndarray] = None
         self.__detection_required: bool = False
 
-        self.__detection_thread: threading.Thread = threading.Thread(target=self.__run_detection)
+        self.__detection_thread: Optional[threading.Thread] = None
 
     # SPECIAL METHODS
 
@@ -66,6 +66,7 @@ class MVDepthOpen3DMappingSystem:
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
 
         # Start the detection thread.
+        self.__detection_thread = threading.Thread(target=self.__run_detection)
         self.__detection_thread.start()
 
         # Until the mapping system should terminate:
@@ -147,7 +148,8 @@ class MVDepthOpen3DMappingSystem:
             self.__should_terminate = True
 
             # TODO: Comment here.
-            self.__detection_thread.join()
+            if self.__detection_thread is not None:
+                self.__detection_thread.join()
 
         return self.__tsdf, self.__objects
 
