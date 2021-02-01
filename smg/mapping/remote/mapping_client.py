@@ -104,9 +104,9 @@ class MappingClient:
 
         :param frame_filler:    A callback function that should fill in the contents of a message.
         """
-        with self.__frame_message_queue.begin_push() as push_handler:
+        with self.__frame_message_queue.begin_push(self.__should_terminate) as push_handler:
             elt: Optional[FrameMessage] = push_handler.get()
-            if elt:
+            if elt is not None:
                 msg: FrameMessage = cast(FrameMessage, elt)
                 frame_filler(msg)
 
@@ -154,5 +154,8 @@ class MappingClient:
                 SocketUtil.write_message(self.__sock, compressed_frame_msg) and \
                 SocketUtil.read_message(self.__sock, ack_msg)
 
-            # Remove the frame message that we have just sent from the queue.
-            self.__frame_message_queue.pop()
+            # If the frame message was successfully sent, remove it from the queue. If not, set the termination flag.
+            if connection_ok:
+                self.__frame_message_queue.pop(self.__should_terminate)
+            else:
+                self.__should_terminate.set()

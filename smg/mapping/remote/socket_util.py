@@ -61,6 +61,6 @@ class SocketUtil:
         try:
             sock.sendall(msg.get_data().tobytes())
             return True
-        except ConnectionResetError:
+        except (ConnectionAbortedError, ConnectionResetError):
             # If an exception is thrown during the write, return False.
             return False

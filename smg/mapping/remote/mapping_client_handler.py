@@ -73,10 +73,10 @@ class MappingClientHandler:
         """
         with self.__lock:
             # Pass the first frame on the message queue to the frame receiver.
-            receiver(self.__frame_message_queue.peek())
+            receiver(self.__frame_message_queue.peek(self.__should_terminate))
 
             # Pop the frame that's just been read from the message queue.
-            self.__frame_message_queue.pop()
+            self.__frame_message_queue.pop(self.__should_terminate)
 
     def get_image_shapes(self) -> Optional[List[Tuple[int, int, int]]]:
         """
@@ -137,7 +137,7 @@ class MappingClientHandler:
                     decompressed_frame_msg = self.__frame_decompressor(frame_msg)
 
                 # Push the decompressed frame onto the message queue.
-                with self.__frame_message_queue.begin_push() as push_handler:
+                with self.__frame_message_queue.begin_push(self.__should_terminate) as push_handler:
                     elt: Optional[FrameMessage] = push_handler.get()
                     if elt is not None:
                         msg: FrameMessage = cast(FrameMessage, elt)

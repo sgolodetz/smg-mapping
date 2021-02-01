@@ -57,12 +57,8 @@ def render_window(*, drone_image: np.ndarray, image_renderer: OpenGLImageRendere
         with OpenGLMatrixContext(
             GL_MODELVIEW, lambda: glLoadMatrixf(CameraPoseConverter.pose_to_modelview(viewing_pose).flatten(order='F'))
         ):
-            glPushAttrib(GL_ENABLE_BIT)
             glColor3f(0.0, 0.0, 0.0)
-            glLineStipple(1, 0x8888)
-            glEnable(GL_LINE_STIPPLE)
-            OpenGLUtil.render_voxel_grid([-2, -2, -2], [2, 0, 2], [1, 1, 1])
-            glPopAttrib()
+            OpenGLUtil.render_voxel_grid([-2, -2, -2], [2, 0, 2], [1, 1, 1], dotted=True)
 
             origin: SimpleCamera = SimpleCamera([0, 0, 0], [0, 0, 1], [0, -1, 0])
             CameraRenderer.render_camera(origin, body_colour=(1.0, 1.0, 0.0), body_scale=0.1)

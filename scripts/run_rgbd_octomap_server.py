@@ -10,10 +10,12 @@ from timeit import default_timer as timer
 from typing import Optional, Tuple
 
 from smg.mapping.remote import MappingServer, RGBDFrameMessageUtil, RGBDFrameReceiver
-from smg.opengl import OpenGLUtil
+from smg.opengl import OpenGLMatrixContext, OpenGLUtil
 from smg.pyoctomap import *
 from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
+from smg.rigging.helpers import CameraPoseConverter
+from smg.utility import GeometryUtil
 
 
 def main() -> None:
@@ -50,9 +52,10 @@ def main() -> None:
 
     with MappingServer(frame_decompressor=RGBDFrameMessageUtil.decompress_frame_message) as server:
         client_id: int = 0
+        image_size: Optional[Tuple[int, int]] = None
         intrinsics: Optional[Tuple[float, float, float, float]] = None
-        pose: Optional[np.ndarray] = None
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
+        tracker_w_t_c: Optional[np.ndarray] = None
 
         # Start the server.
         server.start()
@@ -63,7 +66,7 @@ def main() -> None:
                 # If the user wants to quit:
                 if event.type == pygame.QUIT:
                     # If the reconstruction process has actually started:
-                    if pose is not None:
+                    if tracker_w_t_c is not None:
                         # Save the current octree to disk.
                         print("Saving octree to remote_fusion_rgbd.bt")
                         tree.write_binary("remote_fusion_rgbd.bt")
@@ -75,20 +78,24 @@ def main() -> None:
 
             # If the server has a frame from the client that has not yet been processed:
             if server.has_frames_now(client_id):
-                # Get the camera intrinsics from the server.
+                # Get the camera parameters from the server.
+                height, width, _ = server.get_image_shapes(client_id)[0]
+                image_size = (width, height)
                 intrinsics = server.get_intrinsics(client_id)[0]
 
                 # Get the frame from the server.
                 server.get_frame(client_id, receiver)
-                pose = receiver.get_pose()
+                tracker_w_t_c = receiver.get_pose()
 
                 # Use the depth image and pose to make an Octomap point cloud.
-                pcd: Pointcloud = OctomapUtil.make_point_cloud(receiver.get_depth_image(), pose, intrinsics)
+                pcd: Pointcloud = OctomapUtil.make_point_cloud(receiver.get_depth_image(), tracker_w_t_c, intrinsics)
 
                 # Fuse the point cloud into the octree.
                 start = timer()
+
                 origin: Vector3 = Vector3(0.0, 0.0, 0.0)
                 tree.insert_point_cloud(pcd, origin, discretize=True)
+
                 end = timer()
                 print(f"  - Time: {end - start}s")
 
@@ -99,17 +106,23 @@ def main() -> None:
             glClearColor(1.0, 1.0, 1.0, 1.0)
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
-            # Once the pose is available:
-            if pose is not None:
-                # Set the projection matrix.
-                glMatrixMode(GL_PROJECTION)
-                OpenGLUtil.set_projection_matrix(intrinsics, *window_size)
-
-                # Draw the octree.
+            # Once at least one frame has been received:
+            if image_size is not None:
+                # Determine the viewing pose.
                 viewing_pose: np.ndarray = \
-                    np.linalg.inv(pose) if args["camera_mode"] == "follow" \
+                    np.linalg.inv(tracker_w_t_c) if args["camera_mode"] == "follow" and tracker_w_t_c is not None \
                     else camera_controller.get_pose()
-                OctomapUtil.draw_octree(tree, viewing_pose, drawer)
+
+                # Set the projection matrix.
+                with OpenGLMatrixContext(GL_PROJECTION, lambda: OpenGLUtil.set_projection_matrix(
+                    GeometryUtil.rescale_intrinsics(intrinsics, image_size, window_size), *window_size
+                )):
+                    # Set the model-view matrix.
+                    with OpenGLMatrixContext(GL_MODELVIEW, lambda: OpenGLUtil.load_matrix(
+                        CameraPoseConverter.pose_to_modelview(viewing_pose)
+                    )):
+                        # Draw the octree.
+                        OctomapUtil.draw_octree(tree, drawer)
 
             # Swap the front and back buffers.
             pygame.display.flip()
