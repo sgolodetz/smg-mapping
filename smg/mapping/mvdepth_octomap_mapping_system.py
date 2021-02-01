@@ -31,17 +31,19 @@ class MVDepthOctomapMappingSystem:
     # CONSTRUCTOR
 
     def __init__(self, *, camera_mode: str = "free", depth_estimator: MonocularDepthEstimator,
-                 output_dir: Optional[str] = None, server: MappingServer):
+                 detect_objects: bool = False, output_dir: Optional[str] = None, server: MappingServer):
         """
         Construct a mapping system that estimates depths using MVDepthNet and reconstructs an Octomap.
 
         :param camera_mode:     TODO
         :param depth_estimator: The monocular depth estimator.
+        :param detect_objects:  Whether to detect 3D objects.
         :param output_dir:      TODO
         :param server:          The mapping server.
         """
         self.__camera_mode: str = camera_mode
         self.__depth_estimator: MonocularDepthEstimator = depth_estimator
+        self.__detect_objects: bool = detect_objects
         self.__output_dir: Optional[str] = output_dir
         self.__server: MappingServer = server
         self.__should_terminate: bool = False
@@ -109,9 +111,10 @@ class MVDepthOctomapMappingSystem:
         self.__mapping_thread = threading.Thread(target=self.__run_mapping)
         self.__mapping_thread.start()
 
-        # Start the detection thread.
-        self.__detection_thread = threading.Thread(target=self.__run_detection)
-        self.__detection_thread.start()
+        # If we're detecting 3D objects, start the detection thread.
+        if self.__detect_objects:
+            self.__detection_thread = threading.Thread(target=self.__run_detection)
+            self.__detection_thread.start()
 
         # Until the mapping system should terminate:
         while not self.__should_terminate:

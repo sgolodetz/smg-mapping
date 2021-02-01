@@ -19,6 +19,10 @@ def main() -> None:
         help="the camera mode"
     )
     parser.add_argument(
+        "--detect_objects", "-d", action="store_true",
+        help="whether to detect 3D objects"
+    )
+    parser.add_argument(
         "--output_dir", "-o", type=str,
         help="an optional directory into which to save the sequence"
     )
@@ -38,12 +42,13 @@ def main() -> None:
     ) as server:
         # Construct the depth estimator.
         depth_estimator: MonocularDepthEstimator = MonocularDepthEstimator(
-            "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar", debug=True
+            "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar", debug=False
         )
 
         # Construct the mapping system.
         mapping_system: MVDepthOctomapMappingSystem = MVDepthOctomapMappingSystem(
-            camera_mode=args["camera_mode"], depth_estimator=depth_estimator, output_dir=output_dir, server=server
+            camera_mode=args["camera_mode"], depth_estimator=depth_estimator,
+            detect_objects=args["detect_objects"], output_dir=output_dir, server=server
         )
 
         # Start the server.
