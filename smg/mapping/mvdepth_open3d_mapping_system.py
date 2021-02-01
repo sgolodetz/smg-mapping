@@ -17,12 +17,19 @@ from smg.utility import GeometryUtil, ImageUtil, RGBDSequenceUtil
 
 
 class MVDepthOpen3DMappingSystem:
-    """TODO"""
+    """A mapping system that estimates depths using MVDepthNet and reconstructs an Open3D TSDF."""
 
     # CONSTRUCTOR
 
     def __init__(self, *, depth_estimator: MonocularDepthEstimator, output_dir: Optional[str] = None,
                  server: MappingServer):
+        """
+        TODO
+
+        :param depth_estimator: TODO
+        :param output_dir:      TODO
+        :param server:          TODO
+        """
         self.__depth_estimator: MonocularDepthEstimator = depth_estimator
         self.__output_dir: Optional[str] = output_dir
         self.__server: MappingServer = server
@@ -36,12 +43,12 @@ class MVDepthOpen3DMappingSystem:
 
         self.__objects: List[ObjectDetector3D.Object3D] = []
 
-        self.__detection_lock = threading.Lock()
+        self.__detection_lock: threading.Lock = threading.Lock()
         self.__detection_colour_image: Optional[np.ndarray] = None
         self.__detection_depth_image: Optional[np.ndarray] = None
         self.__detection_pose: Optional[np.ndarray] = None
         self.__detection_intrinsics: Optional[Tuple[float, float, float, float]] = None
-        self.__detection_input_ready = threading.Condition(self.__detection_lock)
+        self.__detection_input_ready: threading.Condition = threading.Condition(self.__detection_lock)
         self.__detection_output_image: Optional[np.ndarray] = None
         self.__detection_required: bool = False
 
@@ -143,6 +150,11 @@ class MVDepthOpen3DMappingSystem:
                     return self.terminate()
 
     def terminate(self) -> Tuple[o3d.pipelines.integration.ScalableTSDFVolume, List[ObjectDetector3D.Object3D]]:
+        """
+        Destroy the mapping system.
+
+        :return:    TODO
+        """
         if not self.__should_terminate:
             # TODO: Comment here.
             self.__should_terminate = True
