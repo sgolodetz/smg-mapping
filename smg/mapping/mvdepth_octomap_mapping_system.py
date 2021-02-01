@@ -9,7 +9,7 @@ import threading
 
 from OpenGL.GL import *
 from timeit import default_timer as timer
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 from smg.mapping.remote import MappingServer, RGBDFrameReceiver
 from smg.mvdepthnet import MonocularDepthEstimator
@@ -76,11 +76,6 @@ class MVDepthOctomapMappingSystem:
         drawer: OcTreeDrawer = OcTreeDrawer()
         drawer.set_color_mode(CM_COLOR_HEIGHT)
 
-        # Create the octree.
-        voxel_size: float = 0.05
-        self.__tree = OcTree(voxel_size)
-        self.__tree.set_occupancy_thres(0.8)
-
         # Construct the camera controller.
         camera_controller: KeyboardCameraController = KeyboardCameraController(
             SimpleCamera([0, 0, 0], [0, 0, 1], [0, -1, 0]), canonical_angular_speed=0.05, canonical_linear_speed=0.1
@@ -135,7 +130,8 @@ class MVDepthOctomapMappingSystem:
 
                         # Draw the octree.
                         with self.__mapping_lock:
-                            OctomapUtil.draw_octree(self.__tree, drawer)
+                            if self.__tree is not None:
+                                OctomapUtil.draw_octree(self.__tree, drawer)
 
             # Swap the front and back buffers.
             pygame.display.flip()
@@ -156,6 +152,11 @@ class MVDepthOctomapMappingSystem:
         """Run the mapping thread."""
         client_id: int = 0
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
+
+        # Create the octree.
+        voxel_size: float = 0.05
+        self.__tree = OcTree(voxel_size)
+        self.__tree.set_occupancy_thres(0.8)
 
         # Until termination is requested:
         while not self.__should_terminate:
