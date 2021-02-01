@@ -55,7 +55,7 @@ def render_window(*, drone_image: np.ndarray, image_renderer: OpenGLImageRendere
         GL_PROJECTION, lambda: OpenGLUtil.set_projection_matrix((500.0, 500.0, 320.0, 240.0), 640, 480)
     ):
         with OpenGLMatrixContext(
-            GL_MODELVIEW, lambda: glLoadMatrixf(CameraPoseConverter.pose_to_modelview(viewing_pose).flatten(order='F'))
+            GL_MODELVIEW, lambda: OpenGLUtil.load_matrix(CameraPoseConverter.pose_to_modelview(viewing_pose))
         ):
             glColor3f(0.0, 0.0, 0.0)
             OpenGLUtil.render_voxel_grid([-2, -2, -2], [2, 0, 2], [1, 1, 1], dotted=True)
