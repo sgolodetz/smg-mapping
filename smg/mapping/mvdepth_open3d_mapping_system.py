@@ -181,10 +181,16 @@ class MVDepthOpen3DMappingSystem:
                     raw_instances, self.__detection_colour_image
                 )
 
+                start = timer()
+
                 # TODO: Comment here.
+                instances: List[InstanceSegmenter.Instance] = instance_segmenter.parse_raw_instances(raw_instances)
+                instances = [instance for instance in instances if instance.label != "book"]
                 self.__objects += object_detector.lift_to_3d(
-                    instance_segmenter.parse_raw_instances(raw_instances), self.__detection_depth_image,
-                    self.__detection_pose, self.__detection_intrinsics
+                    instances, self.__detection_depth_image, self.__detection_pose, self.__detection_intrinsics
                 )
+
+                end = timer()
+                print(f"  - Lifting Time: {end - start}s")
 
                 self.__detection_required = False
