@@ -11,10 +11,11 @@ from typing import Optional, Tuple
 
 from smg.mapping.remote import MappingServer, RGBDFrameMessageUtil, RGBDFrameReceiver
 from smg.mvdepthnet import MonocularDepthEstimator
-from smg.opengl import OpenGLUtil
+from smg.opengl import OpenGLMatrixContext, OpenGLUtil
 from smg.pyoctomap import *
 from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
+from smg.rigging.helpers import CameraPoseConverter
 from smg.utility import GeometryUtil, PooledQueue
 
 
@@ -51,6 +52,7 @@ def main() -> None:
     # Create the octree.
     voxel_size: float = 0.05
     tree: OcTree = OcTree(voxel_size)
+    tree.set_occupancy_thres(0.8)
 
     # Construct the camera controller.
     camera_controller: KeyboardCameraController = KeyboardCameraController(
@@ -134,18 +136,25 @@ def main() -> None:
 
             # Once at least one frame has been received:
             if image_size is not None:
-                # Set the projection matrix.
-                glMatrixMode(GL_PROJECTION)
-                rescaled_intrinsics: Tuple[float, float, float, float] = GeometryUtil.rescale_intrinsics(
-                    intrinsics, image_size, window_size
-                )
-                OpenGLUtil.set_projection_matrix(rescaled_intrinsics, *window_size)
-
-                # Draw the octree.
+                # Determine the viewing pose.
                 viewing_pose: np.ndarray = \
                     np.linalg.inv(tracker_w_t_c) if args["camera_mode"] == "follow" and tracker_w_t_c is not None \
                     else camera_controller.get_pose()
-                OctomapUtil.draw_octree(tree, viewing_pose, drawer)
+
+                # Set the projection matrix.
+                with OpenGLMatrixContext(GL_PROJECTION, lambda: OpenGLUtil.set_projection_matrix(
+                    GeometryUtil.rescale_intrinsics(intrinsics, image_size, window_size), *window_size
+                )):
+                    # Set the model-view matrix.
+                    with OpenGLMatrixContext(GL_MODELVIEW, lambda: OpenGLUtil.load_matrix(
+                        CameraPoseConverter.pose_to_modelview(viewing_pose)
+                    )):
+                        # Draw the voxel grid.
+                        glColor3f(0.0, 0.0, 0.0)
+                        OpenGLUtil.render_voxel_grid([-2, -2, -2], [2, 0, 2], [1, 1, 1], dotted=True)
+
+                        # Draw the octree.
+                        OctomapUtil.draw_octree(tree, drawer)
 
             # Swap the front and back buffers.
             pygame.display.flip()
