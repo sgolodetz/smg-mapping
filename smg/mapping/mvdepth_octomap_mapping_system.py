@@ -164,10 +164,16 @@ class MVDepthOctomapMappingSystem:
                         glColor3f(0.0, 0.0, 0.0)
                         OpenGLUtil.render_voxel_grid([-2, -2, -2], [2, 0, 2], [1, 1, 1], dotted=True)
 
-                        # Draw the octree.
                         with self.__scene_lock:
+                            # Draw the octree.
                             if self.__octree is not None:
                                 OctomapUtil.draw_octree(self.__octree, drawer)
+
+                            # Draw the 3D objects.
+                            glColor3f(1.0, 0.0, 1.0)
+                            for obj in self.__objects:
+                                mins, maxs = obj.box_3d
+                                OpenGLUtil.render_aabb(mins, maxs)
 
             # Swap the front and back buffers.
             pygame.display.flip()
