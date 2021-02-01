@@ -189,7 +189,7 @@ class MVDepthOctomapMappingSystem:
     def __run_detection(self) -> None:
         """Run the detection thread."""
         # Construct the instance segmenter and object detector.
-        instance_segmenter: InstanceSegmenter = InstanceSegmenter.make_mask_rcnn(device="cpu")
+        instance_segmenter: InstanceSegmenter = InstanceSegmenter.make_mask_rcnn()
         object_detector: ObjectDetector3D = ObjectDetector3D(instance_segmenter)
 
         # Until termination is requested:
