@@ -30,16 +30,17 @@ class MVDepthOctomapMappingSystem:
 
     # CONSTRUCTOR
 
-    def __init__(self, *, depth_estimator: MonocularDepthEstimator, output_dir: Optional[str] = None,
-                 server: MappingServer):
+    def __init__(self, *, camera_mode: str = "free", depth_estimator: MonocularDepthEstimator,
+                 output_dir: Optional[str] = None, server: MappingServer):
         """
         Construct a mapping system that estimates depths using MVDepthNet and reconstructs an Octomap.
 
+        :param camera_mode:     TODO
         :param depth_estimator: The monocular depth estimator.
         :param output_dir:      TODO
         :param server:          The mapping server.
         """
-        self.__camera_mode: str = "free"
+        self.__camera_mode: str = camera_mode
         self.__depth_estimator: MonocularDepthEstimator = depth_estimator
         self.__output_dir: Optional[str] = output_dir
         self.__server: MappingServer = server
@@ -285,9 +286,14 @@ class MVDepthOctomapMappingSystem:
                     self.__mapping_w_t_c = tracker_w_t_c.copy()
 
                 # Try to estimate a depth image for the frame.
+                start = timer()
+
                 estimated_depth_image: Optional[np.ndarray] = self.__depth_estimator.estimate_depth(
                     colour_image, tracker_w_t_c
                 )
+
+                end = timer()
+                print(f"  - Depth Estimation Time: {end - start}s")
 
                 # If a depth image was successfully estimated:
                 if estimated_depth_image is not None:

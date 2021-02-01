@@ -15,6 +15,10 @@ def main() -> None:
     # Parse any command-line arguments.
     parser = ArgumentParser()
     parser.add_argument(
+        "--camera_mode", "-m", type=str, choices=("follow", "free"), default="free",
+        help="the camera mode"
+    )
+    parser.add_argument(
         "--output_dir", "-o", type=str,
         help="an optional directory into which to save the sequence"
     )
@@ -39,7 +43,7 @@ def main() -> None:
 
         # Construct the mapping system.
         mapping_system: MVDepthOctomapMappingSystem = MVDepthOctomapMappingSystem(
-            depth_estimator=depth_estimator, output_dir=output_dir, server=server
+            camera_mode=args["camera_mode"], depth_estimator=depth_estimator, output_dir=output_dir, server=server
         )
 
         # Start the server.
