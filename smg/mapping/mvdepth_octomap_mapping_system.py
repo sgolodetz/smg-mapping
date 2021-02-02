@@ -30,9 +30,9 @@ class MVDepthOctomapMappingSystem:
 
     # CONSTRUCTOR
 
-    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
-                 camera_mode: str = "free", detect_objects: bool = False, output_dir: Optional[str] = None,
-                 save_frames: bool = False, save_reconstruction: bool = False):
+    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *, camera_mode: str = "free",
+                 detect_objects: bool = False, output_dir: Optional[str] = None, save_frames: bool = False,
+                 save_reconstruction: bool = False, window_size: Tuple[int, int] = (640, 480)):
         """
         Construct a mapping system that estimates depths using MVDepthNet and reconstructs an Octomap.
 
@@ -43,6 +43,7 @@ class MVDepthOctomapMappingSystem:
         :param output_dir:          An optional directory into which to save output files.
         :param save_frames:         Whether to save the sequence of frames used to reconstruct the Octomap.
         :param save_reconstruction: Whether to save the reconstructed Octomap.
+        :param window_size:         The size of window to use.
         """
         self.__camera_mode: str = camera_mode
         self.__client_id: int = 0
@@ -53,19 +54,20 @@ class MVDepthOctomapMappingSystem:
         self.__save_reconstruction: bool = save_reconstruction
         self.__server: MappingServer = server
         self.__should_terminate: bool = False
+        self.__window_size: Tuple[int, int] = window_size
 
         # The image size and camera intrinsics, together with their lock.
         self.__image_size: Optional[Tuple[int, int]] = None
         self.__intrinsics: Optional[Tuple[float, float, float, float]] = None
         self.__parameters_lock: threading.Lock = threading.Lock()
 
-        # The detection inputs/outputs, together with their lock.
+        # The detection inputs, together with their lock.
         self.__detection_colour_image: Optional[np.ndarray] = None
         self.__detection_depth_image: Optional[np.ndarray] = None
-        self.__detection_tracker_w_t_c: Optional[np.ndarray] = None
+        self.__detection_w_t_c: Optional[np.ndarray] = None
         self.__detection_lock: threading.Lock = threading.Lock()
 
-        # The detected 3D objects, the most recent instance segmentation and the octree, together with their lock.
+        # The most recent instance segmentation, the detected 3D objects and the octree, together with their lock.
         self.__instance_segmentation: Optional[np.ndarray] = None
         self.__objects: List[ObjectDetector3D.Object3D] = []
         self.__octree: Optional[OcTree] = None
@@ -97,8 +99,7 @@ class MVDepthOctomapMappingSystem:
 
         # Initialise PyGame and create the window.
         pygame.init()
-        window_size: Tuple[int, int] = (640, 480)
-        pygame.display.set_mode(window_size, pygame.DOUBLEBUF | pygame.OPENGL)
+        pygame.display.set_mode(self.__window_size, pygame.DOUBLEBUF | pygame.OPENGL)
         pygame.display.set_caption("MVDepth -> Octomap Mapping System")
 
         # Enable the z-buffer.
@@ -129,9 +130,8 @@ class MVDepthOctomapMappingSystem:
             for event in pygame.event.get():
                 # If the user wants to quit:
                 if event.type == pygame.QUIT:
-                    # Shut down pygame and terminate the mapping system.
+                    # Shut down pygame and exit.
                     pygame.quit()
-                    self.terminate()
                     return
 
             with self.__parameters_lock:
@@ -163,7 +163,7 @@ class MVDepthOctomapMappingSystem:
 
                 # Set the projection matrix.
                 with OpenGLMatrixContext(GL_PROJECTION, lambda: OpenGLUtil.set_projection_matrix(
-                    GeometryUtil.rescale_intrinsics(intrinsics, image_size, window_size), *window_size
+                    GeometryUtil.rescale_intrinsics(intrinsics, image_size, self.__window_size), *self.__window_size
                 )):
                     # Set the model-view matrix.
                     with OpenGLMatrixContext(GL_MODELVIEW, lambda: OpenGLUtil.load_matrix(
@@ -203,7 +203,7 @@ class MVDepthOctomapMappingSystem:
             if self.__output_dir is not None and self.__save_reconstruction:
                 os.makedirs(self.__output_dir, exist_ok=True)
                 output_filename: str = os.path.join(self.__output_dir, "output.bt")
-                print(f"Saving octree to {output_filename}")
+                print(f"Saving octree to: {output_filename}")
                 self.__octree.write_binary(output_filename)
 
     # PRIVATE METHODS
@@ -249,7 +249,7 @@ class MVDepthOctomapMappingSystem:
                 instances: List[InstanceSegmenter.Instance] = instance_segmenter.parse_raw_instances(raw_instances)
                 instances = [instance for instance in instances if instance.label != "book"]
                 objects: List[ObjectDetector3D.Object3D] = object_detector.lift_to_3d(
-                    instances, self.__detection_depth_image, self.__detection_tracker_w_t_c, intrinsics
+                    instances, self.__detection_depth_image, self.__detection_w_t_c, intrinsics
                 )
 
                 end = timer()
@@ -340,7 +340,7 @@ class MVDepthOctomapMappingSystem:
                             if not self.__detection_input_is_ready:
                                 self.__detection_colour_image = colour_image.copy()
                                 self.__detection_depth_image = estimated_depth_image.copy()
-                                self.__detection_tracker_w_t_c = tracker_w_t_c.copy()
+                                self.__detection_w_t_c = tracker_w_t_c.copy()
                                 self.__detection_input_is_ready = True
                                 self.__detection_input_ready.notify()
                         finally:
