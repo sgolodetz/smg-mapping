@@ -37,7 +37,7 @@ class MVDepthOpen3DMappingSystem:
         self.__output_dir: Optional[str] = output_dir
         self.__save_frames: bool = save_frames
         self.__server: MappingServer = server
-        self.__should_terminate: bool = False
+        self.__should_terminate: threading.Event = threading.Event()
         self.__tsdf: o3d.pipelines.integration.ScalableTSDFVolume = o3d.pipelines.integration.ScalableTSDFVolume(
             voxel_length=0.01,
             sdf_trunc=0.04,
@@ -90,7 +90,7 @@ class MVDepthOpen3DMappingSystem:
             self.__detection_thread.start()
 
         # Until the mapping system should terminate:
-        while not self.__should_terminate:
+        while not self.__should_terminate.is_set():
             # If the server has a frame from the client that has not yet been processed:
             if self.__server.has_frames_now(client_id):
                 # Get the camera parameters from the server.
@@ -175,9 +175,9 @@ class MVDepthOpen3DMappingSystem:
 
         :return:    TODO
         """
-        if not self.__should_terminate:
+        if not self.__should_terminate.is_set():
             # TODO: Comment here.
-            self.__should_terminate = True
+            self.__should_terminate.set()
 
             # TODO: Comment here.
             if self.__detection_thread is not None:
@@ -193,11 +193,11 @@ class MVDepthOpen3DMappingSystem:
         object_detector: ObjectDetector3D = ObjectDetector3D(instance_segmenter)
         print("Object detector started", flush=True)
 
-        while not self.__should_terminate:
+        while not self.__should_terminate.is_set():
             with self.__detection_lock:
                 while not self.__detection_input_is_ready:
                     self.__detection_input_ready.wait(0.1)
-                    if self.__should_terminate:
+                    if self.__should_terminate.is_set():
                         return
 
                 start = timer()
