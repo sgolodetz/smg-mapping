@@ -4,10 +4,9 @@ import numpy as np
 import open3d as o3d
 import threading
 
+from detectron2.structures import Instances
 from timeit import default_timer as timer
 from typing import List, Optional, Tuple
-
-from detectron2.structures import Instances
 
 from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
 from smg.mapping.remote import MappingServer, RGBDFrameReceiver
@@ -45,11 +44,15 @@ class MVDepthOpen3DMappingSystem:
             color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8
         )
 
+        # The image size and camera intrinsics, together with their lock.
+        self.__image_size: Optional[Tuple[int, int]] = None
+        self.__intrinsics: Optional[Tuple[float, float, float, float]] = None
+        self.__parameters_lock: threading.Lock = threading.Lock()
+
         # The detection inputs/outputs, and their lock.
         self.__detection_colour_image: Optional[np.ndarray] = None
         self.__detection_depth_image: Optional[np.ndarray] = None
-        self.__detection_pose: Optional[np.ndarray] = None
-        self.__detection_intrinsics: Optional[Tuple[float, float, float, float]] = None
+        self.__detection_w_t_c: Optional[np.ndarray] = None
         self.__instance_segmentation: Optional[np.ndarray] = None
         self.__detection_lock: threading.Lock = threading.Lock()
 
@@ -71,6 +74,11 @@ class MVDepthOpen3DMappingSystem:
     # PUBLIC METHODS
 
     def run(self) -> Tuple[o3d.pipelines.integration.ScalableTSDFVolume, List[ObjectDetector3D.Object3D]]:
+        """
+        Run the mapping system.
+
+        :return:    The results of the reconstruction process, as a (TSDF, list of 3D objects) tuple.
+        """
         client_id: int = 0
         colour_image: Optional[np.ndarray] = None
         frame_idx: int = 0
@@ -85,8 +93,16 @@ class MVDepthOpen3DMappingSystem:
         while not self.__should_terminate:
             # If the server has a frame from the client that has not yet been processed:
             if self.__server.has_frames_now(client_id):
-                # Get the camera intrinsics from the server, and pass them to the depth estimator.
+                # Get the camera parameters from the server.
+                height, width, _ = self.__server.get_image_shapes(client_id)[0]
                 intrinsics: Tuple[float, float, float, float] = self.__server.get_intrinsics(client_id)[0]
+
+                # Record them so that other threads have access to them.
+                with self.__parameters_lock:
+                    self.__image_size = (width, height)
+                    self.__intrinsics = intrinsics
+
+                # Pass the camera intrinsics to the depth estimator.
                 self.__depth_estimator.set_intrinsics(GeometryUtil.intrinsics_to_matrix(intrinsics))
 
                 # Get the frame from the server.
@@ -116,7 +132,6 @@ class MVDepthOpen3DMappingSystem:
                     # Fuse the frame into the TSDF.
                     start = timer()
 
-                    height, width = estimated_depth_image.shape
                     fx, fy, cx, cy = intrinsics
                     o3d_intrinsics: o3d.camera.PinholeCameraIntrinsic = o3d.camera.PinholeCameraIntrinsic(
                         width, height, fx, fy, cx, cy
@@ -137,8 +152,7 @@ class MVDepthOpen3DMappingSystem:
                                 cv2.imshow("Instance Segmentation", self.__instance_segmentation)
                             self.__detection_colour_image = colour_image.copy()
                             self.__detection_depth_image = estimated_depth_image.copy()
-                            self.__detection_pose = tracker_w_t_c.copy()
-                            self.__detection_intrinsics = intrinsics
+                            self.__detection_w_t_c = tracker_w_t_c.copy()
                             self.__detection_input_is_ready = True
                             self.__detection_input_ready.notify()
                         finally:
@@ -201,13 +215,17 @@ class MVDepthOpen3DMappingSystem:
                     raw_instances, self.__detection_colour_image
                 )
 
+                # Get the camera intrinsics.
+                with self.__parameters_lock:
+                    intrinsics: Tuple[float, float, float, float] = self.__intrinsics
+
                 start = timer()
 
                 # TODO: Comment here.
                 instances: List[InstanceSegmenter.Instance] = instance_segmenter.parse_raw_instances(raw_instances)
                 instances = [instance for instance in instances if instance.label != "book"]
                 self.__objects += object_detector.lift_to_3d(
-                    instances, self.__detection_depth_image, self.__detection_pose, self.__detection_intrinsics
+                    instances, self.__detection_depth_image, self.__detection_w_t_c, intrinsics
                 )
 
                 end = timer()
