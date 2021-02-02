@@ -243,7 +243,7 @@ class MVDepthOctomapMappingSystem:
 
                 start = timer()
 
-                # Lift the 2D instances to 3D objects.
+                # Lift relevant 2D instances to 3D objects.
                 # TODO: Ultimately, they should be fused in - this is a first pass.
                 instances: List[InstanceSegmenter.Instance] = instance_segmenter.parse_raw_instances(raw_instances)
                 instances = [instance for instance in instances if instance.label != "book"]
@@ -293,13 +293,13 @@ class MVDepthOctomapMappingSystem:
                 # Get the frame from the server.
                 self.__server.get_frame(self.__client_id, receiver)
                 colour_image: np.ndarray = receiver.get_rgb_image()
-                tracker_w_t_c: np.ndarray = receiver.get_pose()
+                mapping_w_t_c: np.ndarray = receiver.get_pose()
 
                 # If an output directory was specified and we're saving frames, save the frame to disk.
                 if self.__output_dir is not None and self.__save_frames:
                     depth_image: np.ndarray = receiver.get_depth_image()
                     RGBDSequenceUtil.save_frame(
-                        frame_idx, self.__output_dir, colour_image, depth_image, tracker_w_t_c,
+                        frame_idx, self.__output_dir, colour_image, depth_image, mapping_w_t_c,
                         colour_intrinsics=intrinsics, depth_intrinsics=intrinsics
                     )
                     frame_idx += 1
@@ -308,7 +308,7 @@ class MVDepthOctomapMappingSystem:
                 start = timer()
 
                 estimated_depth_image: Optional[np.ndarray] = self.__depth_estimator.estimate_depth(
-                    colour_image, tracker_w_t_c
+                    colour_image, mapping_w_t_c
                 )
 
                 end = timer()
@@ -320,7 +320,7 @@ class MVDepthOctomapMappingSystem:
                     estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
 
                     # Use the depth image and pose to make an Octomap point cloud.
-                    pcd: Pointcloud = OctomapUtil.make_point_cloud(estimated_depth_image, tracker_w_t_c, intrinsics)
+                    pcd: Pointcloud = OctomapUtil.make_point_cloud(estimated_depth_image, mapping_w_t_c, intrinsics)
 
                     # Fuse the point cloud into the octree.
                     start = timer()
@@ -339,7 +339,7 @@ class MVDepthOctomapMappingSystem:
                             if not self.__detection_input_is_ready:
                                 self.__detection_colour_image = colour_image.copy()
                                 self.__detection_depth_image = estimated_depth_image.copy()
-                                self.__detection_w_t_c = tracker_w_t_c.copy()
+                                self.__detection_w_t_c = mapping_w_t_c.copy()
                                 self.__detection_input_is_ready = True
                                 self.__detection_input_ready.notify()
                         finally:
