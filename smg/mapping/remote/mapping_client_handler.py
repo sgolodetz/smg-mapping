@@ -143,7 +143,7 @@ class MappingClientHandler:
 
         # If that succeeds:
         if self.__connection_ok:
-            # Set up a frame message accordingly.
+            # Set up a frame message based on the details in the frame header message.
             image_shapes: List[Tuple[int, int, int]] = header_msg.get_image_shapes()
             image_byte_sizes: List[int] = header_msg.get_image_byte_sizes()
             frame_msg: FrameMessage = FrameMessage(image_shapes, image_byte_sizes)

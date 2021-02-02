@@ -1,4 +1,3 @@
-import cv2
 import numpy as np
 import open3d as o3d
 import os
@@ -19,17 +18,25 @@ def main() -> None:
     # Parse any command-line arguments.
     parser = ArgumentParser()
     parser.add_argument(
+        "--detect_objects", "-d", action="store_true",
+        help="whether to detect 3D objects"
+    )
+    parser.add_argument(
         "--output_dir", "-o", type=str,
         help="an optional directory into which to save the sequence"
     )
     parser.add_argument(
-        "--pool_empty_strategy", "-p", type=str, default="discard",
+        "--pool_empty_strategy", "-p", type=str, default="replace_random",
         choices=("discard", "grow", "replace_random", "wait"),
         help="the strategy to use when a frame message is received whilst a client handler's frame pool is empty"
     )
     parser.add_argument(
-        "--save_mesh", action="store_true",
-        help="whether to save the mesh into the output directory as well as the frames"
+        "--save_frames", action="store_true",
+        help="whether to save the sequence of frames used to reconstruct the TSDF"
+    )
+    parser.add_argument(
+        "--save_reconstruction", action="store_true",
+        help="whether to save the reconstructed mesh"
     )
     parser.add_argument(
         "--show_keyframes", action="store_true",
@@ -38,22 +45,21 @@ def main() -> None:
     args: dict = vars(parser.parse_args())
 
     output_dir: Optional[str] = args["output_dir"]
-    save_mesh: bool = args["save_mesh"]
-    show_keyframes: bool = args["show_keyframes"]
+
+    # Construct the depth estimator.
+    depth_estimator: MonocularDepthEstimator = MonocularDepthEstimator(
+        "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar", debug=True
+    )
 
     # Construct the mapping server.
     with MappingServer(
         frame_decompressor=RGBDFrameMessageUtil.decompress_frame_message,
         pool_empty_strategy=PooledQueue.EPoolEmptyStrategy.make(args["pool_empty_strategy"])
     ) as server:
-        # Construct the depth estimator.
-        depth_estimator: MonocularDepthEstimator = MonocularDepthEstimator(
-            "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar", debug=True
-        )
-
         # Construct the mapping system.
         mapping_system: MVDepthOpen3DMappingSystem = MVDepthOpen3DMappingSystem(
-            depth_estimator=depth_estimator, output_dir=output_dir, server=server
+            server, depth_estimator, detect_objects=args["detect_objects"], output_dir=output_dir,
+            save_frames=args["save_frames"]
         )
 
         # Start the server.
@@ -62,34 +68,26 @@ def main() -> None:
         # Run the mapping system.
         tsdf, objects = mapping_system.run()
 
-        # Close any OpenCV windows.
-        cv2.destroyAllWindows()
-
-        # Convert the TSDF to a mesh, and visualise it alongside a voxel grid for evaluation purposes.
+        # Visualise the reconstructed map.
+        grid: o3d.geometry.LineSet = VisualisationUtil.make_voxel_grid([-3, -2, -3], [3, 0, 3], [1, 1, 1])
         mesh: o3d.geometry.TriangleMesh = ReconstructionUtil.make_mesh(tsdf, print_progress=True)
-        grid: o3d.geometry.LineSet = VisualisationUtil.make_voxel_grid(
-            [-2, -2, -2], [2, 0, 2], [1, 1, 1]
-        )
-        to_visualise: List[o3d.geometry.Geometry] = [mesh, grid]
+        to_visualise: List[o3d.geometry.Geometry] = [grid, mesh]
 
-        # TODO: Comment here.
         for obj in objects:
             box: o3d.geometry.AxisAlignedBoundingBox = o3d.geometry.AxisAlignedBoundingBox(*obj.box_3d)
-            box.color = (1.0, 0.0, 0.0)
+            box.color = (1.0, 0.0, 1.0)
             to_visualise.append(box)
 
-        # If requested, also show the MVDepth keyframes.
-        if show_keyframes:
+        if args["show_keyframes"]:
             keyframes: List[Tuple[np.ndarray, np.ndarray]] = depth_estimator.get_keyframes()
             to_visualise += [
                 VisualisationUtil.make_axes(pose, size=0.01) for _, pose in keyframes
             ]
 
-        # Run the Open3D visualiser.
         VisualisationUtil.visualise_geometries(to_visualise)
 
-        # If requested, save the mesh.
-        if output_dir is not None and save_mesh:
+        # If an output directory has been specified and we're saving the reconstruction, save it now.
+        if output_dir is not None and args["save_reconstruction"]:
             # noinspection PyTypeChecker
             o3d.io.write_triangle_mesh(os.path.join(output_dir, "mesh.ply"), mesh, print_progress=True)
 

@@ -21,38 +21,42 @@ class MVDepthOpen3DMappingSystem:
 
     # CONSTRUCTOR
 
-    def __init__(self, *, depth_estimator: MonocularDepthEstimator, output_dir: Optional[str] = None,
-                 server: MappingServer):
+    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
+                 detect_objects: bool = False, output_dir: Optional[str] = None, save_frames: bool = False):
         """
-        TODO
+        Construct a mapping system that estimates depths using MVDepthNet and reconstructs an Open3D TSDF.
 
-        :param depth_estimator: TODO
-        :param output_dir:      TODO
-        :param server:          TODO
+        :param server:          The mapping server.
+        :param depth_estimator: The monocular depth estimator.
+        :param detect_objects:  Whether to detect 3D objects.
+        :param output_dir:      An optional directory into which to save output files.
+        :param save_frames:     Whether to save the sequence of frames used to reconstruct the TSDF.
         """
         self.__depth_estimator: MonocularDepthEstimator = depth_estimator
+        self.__detect_objects: bool = detect_objects
+        self.__objects: List[ObjectDetector3D.Object3D] = []
         self.__output_dir: Optional[str] = output_dir
+        self.__save_frames: bool = save_frames
         self.__server: MappingServer = server
         self.__should_terminate: bool = False
-
         self.__tsdf: o3d.pipelines.integration.ScalableTSDFVolume = o3d.pipelines.integration.ScalableTSDFVolume(
             voxel_length=0.01,
             sdf_trunc=0.04,
             color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8
         )
 
-        self.__objects: List[ObjectDetector3D.Object3D] = []
-
-        self.__detection_lock: threading.Lock = threading.Lock()
+        # The detection inputs/outputs, and their lock.
         self.__detection_colour_image: Optional[np.ndarray] = None
         self.__detection_depth_image: Optional[np.ndarray] = None
         self.__detection_pose: Optional[np.ndarray] = None
         self.__detection_intrinsics: Optional[Tuple[float, float, float, float]] = None
-        self.__detection_input_ready: threading.Condition = threading.Condition(self.__detection_lock)
-        self.__detection_output_image: Optional[np.ndarray] = None
-        self.__detection_required: bool = False
+        self.__instance_segmentation: Optional[np.ndarray] = None
+        self.__detection_lock: threading.Lock = threading.Lock()
 
+        # The threads and conditions.
         self.__detection_thread: Optional[threading.Thread] = None
+        self.__detection_input_is_ready: bool = False
+        self.__detection_input_ready: threading.Condition = threading.Condition(self.__detection_lock)
 
     # SPECIAL METHODS
 
@@ -72,9 +76,10 @@ class MVDepthOpen3DMappingSystem:
         frame_idx: int = 0
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
 
-        # Start the detection thread.
-        self.__detection_thread = threading.Thread(target=self.__run_detection)
-        self.__detection_thread.start()
+        # If we're detecting 3D objects, start the detection thread.
+        if self.__detect_objects:
+            self.__detection_thread = threading.Thread(target=self.__run_detection)
+            self.__detection_thread.start()
 
         # Until the mapping system should terminate:
         while not self.__should_terminate:
@@ -89,8 +94,8 @@ class MVDepthOpen3DMappingSystem:
                 colour_image = receiver.get_rgb_image()
                 tracker_w_t_c: np.ndarray = receiver.get_pose()
 
-                # If an output directory has been specified, save the frame to disk.
-                if self.__output_dir is not None:
+                # If an output directory was specified and we're saving frames, save the frame to disk.
+                if self.__output_dir is not None and self.__save_frames:
                     depth_image: np.ndarray = receiver.get_depth_image()
                     RGBDSequenceUtil.save_frame(
                         frame_idx, self.__output_dir, colour_image, depth_image, tracker_w_t_c,
@@ -128,13 +133,13 @@ class MVDepthOpen3DMappingSystem:
                     acquired: bool = self.__detection_lock.acquire(blocking=False)
                     if acquired:
                         try:
-                            if self.__detection_output_image is not None:
-                                cv2.imshow("Detection Output Image", self.__detection_output_image)
+                            if self.__instance_segmentation is not None:
+                                cv2.imshow("Instance Segmentation", self.__instance_segmentation)
                             self.__detection_colour_image = colour_image.copy()
                             self.__detection_depth_image = estimated_depth_image.copy()
                             self.__detection_pose = tracker_w_t_c.copy()
                             self.__detection_intrinsics = intrinsics
-                            self.__detection_required = True
+                            self.__detection_input_is_ready = True
                             self.__detection_input_ready.notify()
                         finally:
                             self.__detection_lock.release()
@@ -147,6 +152,7 @@ class MVDepthOpen3DMappingSystem:
 
                 # TODO: Comment here.
                 if c == ord('v'):
+                    cv2.destroyAllWindows()
                     return self.terminate()
 
     def terminate(self) -> Tuple[o3d.pipelines.integration.ScalableTSDFVolume, List[ObjectDetector3D.Object3D]]:
@@ -175,7 +181,7 @@ class MVDepthOpen3DMappingSystem:
 
         while not self.__should_terminate:
             with self.__detection_lock:
-                while not self.__detection_required:
+                while not self.__detection_input_is_ready:
                     self.__detection_input_ready.wait(0.1)
                     if self.__should_terminate:
                         return
@@ -191,7 +197,7 @@ class MVDepthOpen3DMappingSystem:
                 print(f"  - Segmentation Time: {end - start}s")
 
                 # Draw the 2D instances so that they can be shown to the user.
-                self.__detection_output_image = instance_segmenter.draw_raw_instances(
+                self.__instance_segmentation = instance_segmenter.draw_raw_instances(
                     raw_instances, self.__detection_colour_image
                 )
 
@@ -207,4 +213,4 @@ class MVDepthOpen3DMappingSystem:
                 end = timer()
                 print(f"  - Lifting Time: {end - start}s")
 
-                self.__detection_required = False
+                self.__detection_input_is_ready = False

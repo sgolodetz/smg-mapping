@@ -75,8 +75,8 @@ class MVDepthOctomapMappingSystem:
 
         # The threads and conditions.
         self.__detection_thread: Optional[threading.Thread] = None
-        self.__detection_input_ready: threading.Condition = threading.Condition(self.__detection_lock)
         self.__detection_input_is_ready: bool = False
+        self.__detection_input_ready: threading.Condition = threading.Condition(self.__detection_lock)
 
         self.__mapping_thread: Optional[threading.Thread] = None
 
