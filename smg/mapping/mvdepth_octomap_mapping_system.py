@@ -53,7 +53,7 @@ class MVDepthOctomapMappingSystem:
         self.__save_frames: bool = save_frames
         self.__save_reconstruction: bool = save_reconstruction
         self.__server: MappingServer = server
-        self.__should_terminate: bool = False
+        self.__should_terminate: threading.Event = threading.Event()
         self.__window_size: Tuple[int, int] = window_size
 
         # The image size and camera intrinsics, together with their lock.
@@ -125,13 +125,14 @@ class MVDepthOctomapMappingSystem:
             self.__detection_thread.start()
 
         # Until the mapping system should terminate:
-        while not self.__should_terminate:
+        while not self.__should_terminate.is_set():
             # Process any PyGame events.
             for event in pygame.event.get():
                 # If the user wants to quit:
                 if event.type == pygame.QUIT:
-                    # Shut down pygame and exit.
+                    # Shut down pygame, close any remaining OpenCV windows, and exit.
                     pygame.quit()
+                    cv2.destroyAllWindows()
                     return
 
             with self.__parameters_lock:
@@ -181,17 +182,15 @@ class MVDepthOctomapMappingSystem:
                             # Draw the 3D objects.
                             glColor3f(1.0, 0.0, 1.0)
                             for obj in self.__objects:
-                                mins, maxs = obj.box_3d
-                                OpenGLUtil.render_aabb(mins, maxs)
+                                OpenGLUtil.render_aabb(*obj.box_3d)
 
             # Swap the front and back buffers.
             pygame.display.flip()
 
     def terminate(self) -> None:
         """Destroy the mapping system."""
-        if not self.__should_terminate:
-            # TODO: Comment here.
-            self.__should_terminate = True
+        if not self.__should_terminate.is_set():
+            self.__should_terminate.set()
 
             # Join any running threads.
             if self.__detection_thread is not None:
@@ -202,7 +201,7 @@ class MVDepthOctomapMappingSystem:
             # If an output directory has been specified and we're saving the reconstruction, save it now.
             if self.__output_dir is not None and self.__save_reconstruction:
                 os.makedirs(self.__output_dir, exist_ok=True)
-                output_filename: str = os.path.join(self.__output_dir, "output.bt")
+                output_filename: str = os.path.join(self.__output_dir, "octree.bt")
                 print(f"Saving octree to: {output_filename}")
                 self.__octree.write_binary(output_filename)
 
@@ -215,12 +214,12 @@ class MVDepthOctomapMappingSystem:
         object_detector: ObjectDetector3D = ObjectDetector3D(instance_segmenter)
 
         # Until termination is requested:
-        while not self.__should_terminate:
+        while not self.__should_terminate.is_set():
             with self.__detection_lock:
                 # Wait for a detection request. If termination is requested whilst waiting, exit.
                 while not self.__detection_input_is_ready:
                     self.__detection_input_ready.wait(0.1)
-                    if self.__should_terminate:
+                    if self.__should_terminate.is_set():
                         return
 
                 start = timer()
@@ -276,7 +275,7 @@ class MVDepthOctomapMappingSystem:
         self.__octree.set_occupancy_thres(0.8)
 
         # Until termination is requested:
-        while not self.__should_terminate:
+        while not self.__should_terminate.is_set():
             # If the server has a frame from the client that has not yet been processed:
             if self.__server.has_frames_now(self.__client_id):
                 # Get the camera parameters from the server.

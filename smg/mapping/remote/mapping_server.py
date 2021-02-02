@@ -240,6 +240,7 @@ class MappingServer:
             for s in readable:
                 if s is server_sock:
                     client_sock, client_endpoint = server_sock.accept()
+                    client_sock.settimeout(5)
                     print(f"Accepted connection from client {self.__next_client_id} @ {client_endpoint}")
                     with self.__lock:
                         client_handler: MappingClientHandler = MappingClientHandler(
