@@ -90,12 +90,6 @@ class MVDepthOpen3DMappingSystem:
 
         # Until the mapping system should terminate:
         while not self.__should_terminate.is_set():
-            # Show the most recent instance segmentation (if any).
-            with self.__scene_lock:
-                if self.__instance_segmentation is not None:
-                    cv2.imshow("Instance Segmentation", self.__instance_segmentation)
-                    cv2.waitKey(1)
-
             # If the server has any frames from the client that have not yet been processed, get the colour image
             # from the most recent one.
             if self.__server.peek_newest_frame(self.__client_id, receiver):
@@ -111,8 +105,18 @@ class MVDepthOpen3DMappingSystem:
                 if c == ord('v'):
                     return self.terminate()
 
+            # Show the most recent instance segmentation (if any).
+            with self.__scene_lock:
+                if self.__instance_segmentation is not None:
+                    cv2.imshow("Instance Segmentation", self.__instance_segmentation)
+                    cv2.waitKey(1)
+
     def terminate(self) -> Tuple[o3d.pipelines.integration.ScalableTSDFVolume, List[ObjectDetector3D.Object3D]]:
-        """Destroy the mapping system."""
+        """
+        Destroy the mapping system.
+
+        :return:    The results of the reconstruction process, as a (TSDF, list of 3D objects) tuple.
+        """
         if not self.__should_terminate.is_set():
             self.__should_terminate.set()
 
