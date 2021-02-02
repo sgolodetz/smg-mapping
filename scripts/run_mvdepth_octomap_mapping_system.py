@@ -24,38 +24,45 @@ def main() -> None:
     )
     parser.add_argument(
         "--output_dir", "-o", type=str,
-        help="an optional directory into which to save the sequence"
+        help="an optional directory into which to save output files"
     )
     parser.add_argument(
         "--pool_empty_strategy", "-p", type=str, default="replace_random",
         choices=("discard", "grow", "replace_random", "wait"),
         help="the strategy to use when a frame message is received whilst a client handler's frame pool is empty"
     )
+    parser.add_argument(
+        "--save_frames", action="store_true",
+        help="whether to save the sequence of frames used to reconstruct the Octomap"
+    )
+    parser.add_argument(
+        "--save_reconstruction", action="store_true",
+        help="whether to save the reconstructed Octomap"
+    )
     args: dict = vars(parser.parse_args())
 
     output_dir: Optional[str] = args["output_dir"]
+
+    # Construct the depth estimator.
+    depth_estimator: MonocularDepthEstimator = MonocularDepthEstimator(
+        "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar", debug=False
+    )
 
     # Construct the mapping server.
     with MappingServer(
         frame_decompressor=RGBDFrameMessageUtil.decompress_frame_message,
         pool_empty_strategy=PooledQueue.EPoolEmptyStrategy.make(args["pool_empty_strategy"])
     ) as server:
-        # Construct the depth estimator.
-        depth_estimator: MonocularDepthEstimator = MonocularDepthEstimator(
-            "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar", debug=False
-        )
-
         # Construct the mapping system.
-        mapping_system: MVDepthOctomapMappingSystem = MVDepthOctomapMappingSystem(
-            camera_mode=args["camera_mode"], depth_estimator=depth_estimator,
-            detect_objects=args["detect_objects"], output_dir=output_dir, server=server
-        )
+        with MVDepthOctomapMappingSystem(
+            server, depth_estimator, camera_mode=args["camera_mode"], detect_objects=args["detect_objects"],
+            output_dir=output_dir, save_frames=args["save_frames"], save_reconstruction=args["save_reconstruction"]
+        ) as mapping_system:
+            # Start the server.
+            server.start()
 
-        # Start the server.
-        server.start()
-
-        # Run the mapping system.
-        mapping_system.run()
+            # Run the mapping system.
+            mapping_system.run()
 
 
 if __name__ == "__main__":

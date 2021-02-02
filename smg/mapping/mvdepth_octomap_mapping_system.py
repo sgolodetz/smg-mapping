@@ -2,12 +2,12 @@ import cv2
 import detectron2
 import numpy as np
 import os
-import time
 
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame
 
 import threading
+import time
 
 from detectron2.structures import Instances
 from OpenGL.GL import *
@@ -18,11 +18,11 @@ from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
 from smg.mapping.remote import MappingServer, RGBDFrameReceiver
 from smg.mvdepthnet import MonocularDepthEstimator
 from smg.opengl import OpenGLMatrixContext, OpenGLUtil
-from smg.pyoctomap import *
+from smg.pyoctomap import CM_COLOR_HEIGHT, OctomapUtil, OcTree, OcTreeDrawer, Pointcloud, Vector3
 from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
 from smg.rigging.helpers import CameraPoseConverter
-from smg.utility import GeometryUtil
+from smg.utility import GeometryUtil, RGBDSequenceUtil
 
 
 class MVDepthOctomapMappingSystem:
@@ -30,21 +30,27 @@ class MVDepthOctomapMappingSystem:
 
     # CONSTRUCTOR
 
-    def __init__(self, *, camera_mode: str = "free", depth_estimator: MonocularDepthEstimator,
-                 detect_objects: bool = False, output_dir: Optional[str] = None, server: MappingServer):
+    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
+                 camera_mode: str = "free", detect_objects: bool = False, output_dir: Optional[str] = None,
+                 save_frames: bool = False, save_reconstruction: bool = False):
         """
         Construct a mapping system that estimates depths using MVDepthNet and reconstructs an Octomap.
 
-        :param camera_mode:     TODO
-        :param depth_estimator: The monocular depth estimator.
-        :param detect_objects:  Whether to detect 3D objects.
-        :param output_dir:      TODO
-        :param server:          The mapping server.
+        :param server:              The mapping server.
+        :param depth_estimator:     The monocular depth estimator.
+        :param camera_mode:         The camera mode to use (follow|free).
+        :param detect_objects:      Whether to detect 3D objects.
+        :param output_dir:          An optional directory into which to save output files.
+        :param save_frames:         Whether to save the sequence of frames used to reconstruct the Octomap.
+        :param save_reconstruction: Whether to save the reconstructed Octomap.
         """
         self.__camera_mode: str = camera_mode
+        self.__client_id: int = 0
         self.__depth_estimator: MonocularDepthEstimator = depth_estimator
         self.__detect_objects: bool = detect_objects
         self.__output_dir: Optional[str] = output_dir
+        self.__save_frames: bool = save_frames
+        self.__save_reconstruction: bool = save_reconstruction
         self.__server: MappingServer = server
         self.__should_terminate: bool = False
 
@@ -86,7 +92,6 @@ class MVDepthOctomapMappingSystem:
 
     def run(self) -> None:
         """Run the mapping system."""
-        client_id: int = 0
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
         viewing_pose: np.ndarray = np.eye(4)
 
@@ -124,10 +129,10 @@ class MVDepthOctomapMappingSystem:
             for event in pygame.event.get():
                 # If the user wants to quit:
                 if event.type == pygame.QUIT:
-                    # Shut down pygame, and forcibly exit the program.
+                    # Shut down pygame and terminate the mapping system.
                     pygame.quit()
-                    # noinspection PyProtectedMember
-                    os._exit(0)
+                    self.terminate()
+                    return
 
             with self.__parameters_lock:
                 # Try to get the camera parameters.
@@ -151,7 +156,7 @@ class MVDepthOctomapMappingSystem:
             if image_size is not None:
                 # Determine the viewing pose.
                 if self.__camera_mode == "follow":
-                    if self.__server.peek_newest_frame(client_id, receiver):
+                    if self.__server.peek_newest_frame(self.__client_id, receiver):
                         viewing_pose = np.linalg.inv(receiver.get_pose())
                 else:
                     viewing_pose = camera_controller.get_pose()
@@ -193,6 +198,13 @@ class MVDepthOctomapMappingSystem:
                 self.__detection_thread.join()
             if self.__mapping_thread is not None:
                 self.__mapping_thread.join()
+
+            # If an output directory has been specified and we're saving the reconstruction, save it now.
+            if self.__output_dir is not None and self.__save_reconstruction:
+                os.makedirs(self.__output_dir, exist_ok=True)
+                output_filename: str = os.path.join(self.__output_dir, "output.bt")
+                print(f"Saving octree to {output_filename}")
+                self.__octree.write_binary(output_filename)
 
     # PRIVATE METHODS
 
@@ -255,7 +267,7 @@ class MVDepthOctomapMappingSystem:
 
     def __run_mapping(self) -> None:
         """Run the mapping thread."""
-        client_id: int = 0
+        frame_idx: int = 0
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
 
         # Construct the octree.
@@ -266,10 +278,10 @@ class MVDepthOctomapMappingSystem:
         # Until termination is requested:
         while not self.__should_terminate:
             # If the server has a frame from the client that has not yet been processed:
-            if self.__server.has_frames_now(client_id):
+            if self.__server.has_frames_now(self.__client_id):
                 # Get the camera parameters from the server.
-                height, width, _ = self.__server.get_image_shapes(client_id)[0]
-                intrinsics: Tuple[float, float, float, float] = self.__server.get_intrinsics(client_id)[0]
+                height, width, _ = self.__server.get_image_shapes(self.__client_id)[0]
+                intrinsics: Tuple[float, float, float, float] = self.__server.get_intrinsics(self.__client_id)[0]
 
                 # Record them so that other threads have access to them.
                 with self.__parameters_lock:
@@ -280,9 +292,18 @@ class MVDepthOctomapMappingSystem:
                 self.__depth_estimator.set_intrinsics(GeometryUtil.intrinsics_to_matrix(intrinsics))
 
                 # Get the frame from the server.
-                self.__server.get_frame(client_id, receiver)
+                self.__server.get_frame(self.__client_id, receiver)
                 colour_image: np.ndarray = receiver.get_rgb_image()
                 tracker_w_t_c: np.ndarray = receiver.get_pose()
+
+                # If an output directory was specified and we're saving frames, save the frame to disk.
+                if self.__output_dir is not None and self.__save_frames:
+                    depth_image: np.ndarray = receiver.get_depth_image()
+                    RGBDSequenceUtil.save_frame(
+                        frame_idx, self.__output_dir, colour_image, depth_image, tracker_w_t_c,
+                        colour_intrinsics=intrinsics, depth_intrinsics=intrinsics
+                    )
+                    frame_idx += 1
 
                 # Try to estimate a depth image for the frame.
                 start = timer()
