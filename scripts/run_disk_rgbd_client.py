@@ -68,7 +68,7 @@ def main() -> None:
                     if pause:
                         c = cv2.waitKey()
                     else:
-                        c = cv2.waitKey(1)
+                        c = cv2.waitKey(50)
 
                     if c == ord('b'):
                         pause = False

@@ -61,14 +61,14 @@ class MappingClientHandler:
 
     def get_frame(self, receiver: Callable[[FrameMessage], None]) -> None:
         """
-        Get the first frame from the client that has not yet been processed.
+        Get the oldest frame from the client that has not yet been processed.
 
         .. note::
             The concept of a 'frame receiver' is used to obviate the client handler from needing to know about
             the contents of frame messages. This way, the frame receiver needs to know how to handle the frame
             message that it's given, but the client handler can just forward it to the receiver without caring.
 
-        :param receiver:    The frame receiver to which to pass the first frame from the client that has not
+        :param receiver:    The frame receiver to which to pass the oldest frame from the client that has not
                             yet been processed.
         """
         with self.__lock:
@@ -112,6 +112,28 @@ class MappingClientHandler:
         :return:    True, if the connection is still ok, or False otherwise.
         """
         return self.__connection_ok
+
+    def peek_newest_frame(self, receiver: Callable[[FrameMessage], None]) -> bool:
+        """
+        Peek at the newest frame received from the client that has not yet been processed (if any).
+
+        .. note::
+            The concept of a 'frame receiver' is used to obviate the server from needing to know about the contents
+            of frame messages. This way, the frame receiver needs to know how to handle the frame message that it's
+            given, but the server can just forward it to the receiver without caring.
+
+        :param receiver:    The frame receiver to which to pass the newest frame from the client that has not
+                            yet been processed.
+        :return:            True, if a newest frame existed and was passed to the receiver, or False otherwise.
+        """
+        with self.__lock:
+            # If any frames from the client have not yet been processed, pass the last frame on the message queue
+            # (i.e. the newest frame) to the frame receiver.
+            if self.__frame_message_queue.size() > 0:
+                receiver(self.__frame_message_queue.peek_last(self.__should_terminate))
+                return True
+            else:
+                return False
 
     def run_iter(self) -> None:
         """Run an iteration of the main loop for the client."""
