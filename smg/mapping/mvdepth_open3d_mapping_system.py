@@ -61,16 +61,6 @@ class MVDepthOpen3DMappingSystem:
         self.__detection_input_is_ready: bool = False
         self.__detection_input_ready: threading.Condition = threading.Condition(self.__detection_lock)
 
-    # SPECIAL METHODS
-
-    def __enter__(self):
-        """No-op (needed to allow the mapping system's lifetime to be managed by a with statement)."""
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Destroy the mapping system at the end of the with statement that's used to manage its lifetime."""
-        self.terminate()
-
     # PUBLIC METHODS
 
     def run(self) -> Tuple[o3d.pipelines.integration.ScalableTSDFVolume, List[ObjectDetector3D.Object3D]]:
@@ -80,8 +70,8 @@ class MVDepthOpen3DMappingSystem:
         :return:    The results of the reconstruction process, as a (TSDF, list of 3D objects) tuple.
         """
         client_id: int = 0
-        colour_image: Optional[np.ndarray] = None
         frame_idx: int = 0
+        newest_colour_image: Optional[np.ndarray] = None
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
 
         # If we're detecting 3D objects, start the detection thread.
@@ -107,7 +97,7 @@ class MVDepthOpen3DMappingSystem:
 
                 # Get the frame from the server.
                 self.__server.get_frame(client_id, receiver)
-                colour_image = receiver.get_rgb_image()
+                colour_image: np.ndarray = receiver.get_rgb_image()
                 tracker_w_t_c: np.ndarray = receiver.get_pose()
 
                 # If an output directory was specified and we're saving frames, save the frame to disk.
@@ -159,9 +149,13 @@ class MVDepthOpen3DMappingSystem:
                             self.__detection_lock.release()
 
             # TODO: Comment here.
-            if colour_image is not None:
+            if self.__server.peek_newest_frame(client_id, receiver):
+                newest_colour_image = receiver.get_rgb_image()
+
+            # TODO: Comment here.
+            if newest_colour_image is not None:
                 # TODO: Comment here.
-                cv2.imshow("MVDepth -> Open3D Mapping System", colour_image)
+                cv2.imshow("MVDepth -> Open3D Mapping System", newest_colour_image)
                 c: int = cv2.waitKey(1)
 
                 # TODO: Comment here.
