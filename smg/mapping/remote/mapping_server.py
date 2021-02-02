@@ -60,7 +60,7 @@ class MappingServer:
 
     def get_frame(self, client_id: int, receiver: Callable[[FrameMessage], None]) -> None:
         """
-        Get the first frame from the specified client that has not yet been processed.
+        Get the oldest frame from the specified client that has not yet been processed.
 
         .. note::
             The concept of a 'frame receiver' is used to obviate the server from needing to know about the contents
@@ -68,7 +68,7 @@ class MappingServer:
             given, but the server can just forward it to the receiver without caring.
 
         :param client_id:   The ID of the client.
-        :param receiver:    The frame receiver to which to pass the first frame from the client that has not
+        :param receiver:    The frame receiver to which to pass the oldest frame from the client that has not
                             yet been processed.
         """
         client_handler: MappingClientHandler = self._get_client_handler(client_id, wait_for_start=True)
@@ -127,6 +127,26 @@ class MappingServer:
                             or False otherwise.
         """
         return not self.has_finished(client_id)
+
+    def peek_newest_frame(self, client_id: int, receiver: Callable[[FrameMessage], None]) -> bool:
+        """
+        Peek at the newest frame from the specified client that has not yet been processed (if any).
+
+        .. note::
+            The concept of a 'frame receiver' is used to obviate the server from needing to know about the contents
+            of frame messages. This way, the frame receiver needs to know how to handle the frame message that it's
+            given, but the server can just forward it to the receiver without caring.
+
+        :param client_id:   The ID of the client.
+        :param receiver:    The frame receiver to which to pass the newest frame from the client that has
+                            not yet been processed.
+        :return:            True, if a newest frame existed and was passed to the receiver, or False otherwise.
+        """
+        client_handler: MappingClientHandler = self._get_client_handler(client_id, wait_for_start=True)
+        if client_handler is not None:
+            return client_handler.peek_newest_frame(receiver)
+        else:
+            return False
 
     def start(self) -> None:
         """Start the server."""

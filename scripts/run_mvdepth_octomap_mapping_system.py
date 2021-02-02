@@ -27,7 +27,7 @@ def main() -> None:
         help="an optional directory into which to save the sequence"
     )
     parser.add_argument(
-        "--pool_empty_strategy", "-p", type=str, default="discard",
+        "--pool_empty_strategy", "-p", type=str, default="replace_random",
         choices=("discard", "grow", "replace_random", "wait"),
         help="the strategy to use when a frame message is received whilst a client handler's frame pool is empty"
     )

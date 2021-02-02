@@ -59,10 +59,8 @@ class MVDepthOctomapMappingSystem:
         self.__detection_tracker_w_t_c: Optional[np.ndarray] = None
         self.__detection_lock: threading.Lock = threading.Lock()
 
-        # The mapping pose, the detected 3D objects, the most recent instance segmentation and the octree,
-        # together with their lock.
+        # The detected 3D objects, the most recent instance segmentation and the octree, together with their lock.
         self.__instance_segmentation: Optional[np.ndarray] = None
-        self.__mapping_w_t_c: Optional[np.ndarray] = None
         self.__objects: List[ObjectDetector3D.Object3D] = []
         self.__octree: Optional[OcTree] = None
         self.__scene_lock: threading.Lock = threading.Lock()
@@ -88,6 +86,10 @@ class MVDepthOctomapMappingSystem:
 
     def run(self) -> None:
         """Run the mapping system."""
+        client_id: int = 0
+        receiver: RGBDFrameReceiver = RGBDFrameReceiver()
+        viewing_pose: np.ndarray = np.eye(4)
+
         # Initialise PyGame and create the window.
         pygame.init()
         window_size: Tuple[int, int] = (640, 480)
@@ -133,10 +135,6 @@ class MVDepthOctomapMappingSystem:
                 intrinsics: Optional[Tuple[float, float, float, float]] = self.__intrinsics
 
             with self.__scene_lock:
-                # Try to get the mapping pose.
-                mapping_w_t_c: Optional[np.ndarray] = self.__mapping_w_t_c.copy() \
-                    if self.__mapping_w_t_c is not None else None
-
                 # Show the most recent instance segmentation (if any).
                 if self.__instance_segmentation is not None:
                     cv2.imshow("Instance Segmentation", self.__instance_segmentation)
@@ -152,9 +150,11 @@ class MVDepthOctomapMappingSystem:
             # Once at least one frame has been received:
             if image_size is not None:
                 # Determine the viewing pose.
-                viewing_pose: np.ndarray = \
-                    np.linalg.inv(mapping_w_t_c) if self.__camera_mode == "follow" and mapping_w_t_c is not None \
-                    else camera_controller.get_pose()
+                if self.__camera_mode == "follow":
+                    if self.__server.peek_newest_frame(client_id, receiver):
+                        viewing_pose = np.linalg.inv(receiver.get_pose())
+                else:
+                    viewing_pose = camera_controller.get_pose()
 
                 # Set the projection matrix.
                 with OpenGLMatrixContext(GL_PROJECTION, lambda: OpenGLUtil.set_projection_matrix(
@@ -166,7 +166,7 @@ class MVDepthOctomapMappingSystem:
                     )):
                         # Draw the voxel grid.
                         glColor3f(0.0, 0.0, 0.0)
-                        OpenGLUtil.render_voxel_grid([-2, -2, -2], [2, 0, 2], [1, 1, 1], dotted=True)
+                        OpenGLUtil.render_voxel_grid([-3, -2, -3], [3, 0, 3], [1, 1, 1], dotted=True)
 
                         with self.__scene_lock:
                             # Draw the octree.
@@ -283,10 +283,6 @@ class MVDepthOctomapMappingSystem:
                 self.__server.get_frame(client_id, receiver)
                 colour_image: np.ndarray = receiver.get_rgb_image()
                 tracker_w_t_c: np.ndarray = receiver.get_pose()
-
-                # Record the mapping pose so that other threads have access to it.
-                with self.__scene_lock:
-                    self.__mapping_w_t_c = tracker_w_t_c.copy()
 
                 # Try to estimate a depth image for the frame.
                 start = timer()
