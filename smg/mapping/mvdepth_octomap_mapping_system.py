@@ -135,13 +135,13 @@ class MVDepthOctomapMappingSystem:
                     cv2.destroyAllWindows()
                     return
 
+            # Try to get the camera parameters.
             with self.__parameters_lock:
-                # Try to get the camera parameters.
                 image_size: Optional[Tuple[int, int]] = self.__image_size
                 intrinsics: Optional[Tuple[float, float, float, float]] = self.__intrinsics
 
+            # Show the most recent instance segmentation (if any).
             with self.__scene_lock:
-                # Show the most recent instance segmentation (if any).
                 if self.__instance_segmentation is not None:
                     cv2.imshow("Instance Segmentation", self.__instance_segmentation)
                     cv2.waitKey(1)

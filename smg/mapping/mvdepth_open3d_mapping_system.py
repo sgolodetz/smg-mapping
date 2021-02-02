@@ -3,6 +3,7 @@ import detectron2
 import numpy as np
 import open3d as o3d
 import threading
+import time
 
 from detectron2.structures import Instances
 from timeit import default_timer as timer
@@ -31,35 +32,41 @@ class MVDepthOpen3DMappingSystem:
         :param output_dir:      An optional directory into which to save output files.
         :param save_frames:     Whether to save the sequence of frames used to reconstruct the TSDF.
         """
+        self.__client_id: int = 0
         self.__depth_estimator: MonocularDepthEstimator = depth_estimator
         self.__detect_objects: bool = detect_objects
-        self.__objects: List[ObjectDetector3D.Object3D] = []
         self.__output_dir: Optional[str] = output_dir
         self.__save_frames: bool = save_frames
         self.__server: MappingServer = server
         self.__should_terminate: threading.Event = threading.Event()
-        self.__tsdf: o3d.pipelines.integration.ScalableTSDFVolume = o3d.pipelines.integration.ScalableTSDFVolume(
-            voxel_length=0.01,
-            sdf_trunc=0.04,
-            color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8
-        )
 
         # The image size and camera intrinsics, together with their lock.
         self.__image_size: Optional[Tuple[int, int]] = None
         self.__intrinsics: Optional[Tuple[float, float, float, float]] = None
         self.__parameters_lock: threading.Lock = threading.Lock()
 
-        # The detection inputs/outputs, and their lock.
+        # The detection inputs, together with their lock.
         self.__detection_colour_image: Optional[np.ndarray] = None
         self.__detection_depth_image: Optional[np.ndarray] = None
         self.__detection_w_t_c: Optional[np.ndarray] = None
-        self.__instance_segmentation: Optional[np.ndarray] = None
         self.__detection_lock: threading.Lock = threading.Lock()
+
+        # The most recent instance segmentation, the detected 3D objects and the TSDF, together with their lock.
+        self.__instance_segmentation: Optional[np.ndarray] = None
+        self.__objects: List[ObjectDetector3D.Object3D] = []
+        self.__tsdf: o3d.pipelines.integration.ScalableTSDFVolume = o3d.pipelines.integration.ScalableTSDFVolume(
+            voxel_length=0.01,
+            sdf_trunc=0.04,
+            color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8
+        )
+        self.__scene_lock: threading.Lock = threading.Lock()
 
         # The threads and conditions.
         self.__detection_thread: Optional[threading.Thread] = None
         self.__detection_input_is_ready: bool = False
         self.__detection_input_ready: threading.Condition = threading.Condition(self.__detection_lock)
+
+        self.__mapping_thread: Optional[threading.Thread] = None
 
     # PUBLIC METHODS
 
@@ -69,10 +76,12 @@ class MVDepthOpen3DMappingSystem:
 
         :return:    The results of the reconstruction process, as a (TSDF, list of 3D objects) tuple.
         """
-        client_id: int = 0
-        frame_idx: int = 0
         newest_colour_image: Optional[np.ndarray] = None
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
+
+        # Start the mapping thread.
+        self.__mapping_thread = threading.Thread(target=self.__run_mapping)
+        self.__mapping_thread.start()
 
         # If we're detecting 3D objects, start the detection thread.
         if self.__detect_objects:
@@ -81,114 +90,52 @@ class MVDepthOpen3DMappingSystem:
 
         # Until the mapping system should terminate:
         while not self.__should_terminate.is_set():
-            # If the server has a frame from the client that has not yet been processed:
-            if self.__server.has_frames_now(client_id):
-                # Get the camera parameters from the server.
-                height, width, _ = self.__server.get_image_shapes(client_id)[0]
-                intrinsics: Tuple[float, float, float, float] = self.__server.get_intrinsics(client_id)[0]
+            # Show the most recent instance segmentation (if any).
+            with self.__scene_lock:
+                if self.__instance_segmentation is not None:
+                    cv2.imshow("Instance Segmentation", self.__instance_segmentation)
+                    cv2.waitKey(1)
 
-                # Record them so that other threads have access to them.
-                with self.__parameters_lock:
-                    self.__image_size = (width, height)
-                    self.__intrinsics = intrinsics
-
-                # Pass the camera intrinsics to the depth estimator.
-                self.__depth_estimator.set_intrinsics(GeometryUtil.intrinsics_to_matrix(intrinsics))
-
-                # Get the frame from the server.
-                self.__server.get_frame(client_id, receiver)
-                colour_image: np.ndarray = receiver.get_rgb_image()
-                tracker_w_t_c: np.ndarray = receiver.get_pose()
-
-                # If an output directory was specified and we're saving frames, save the frame to disk.
-                if self.__output_dir is not None and self.__save_frames:
-                    depth_image: np.ndarray = receiver.get_depth_image()
-                    RGBDSequenceUtil.save_frame(
-                        frame_idx, self.__output_dir, colour_image, depth_image, tracker_w_t_c,
-                        colour_intrinsics=intrinsics, depth_intrinsics=intrinsics
-                    )
-                    frame_idx += 1
-
-                # Try to estimate a depth image for the frame.
-                estimated_depth_image: Optional[np.ndarray] = self.__depth_estimator.estimate_depth(
-                    colour_image, tracker_w_t_c
-                )
-
-                # If a depth image was successfully estimated:
-                if estimated_depth_image is not None:
-                    # Limit its range to 3m (more distant points can be unreliable).
-                    estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
-
-                    # Fuse the frame into the TSDF.
-                    start = timer()
-
-                    fx, fy, cx, cy = intrinsics
-                    o3d_intrinsics: o3d.camera.PinholeCameraIntrinsic = o3d.camera.PinholeCameraIntrinsic(
-                        width, height, fx, fy, cx, cy
-                    )
-                    ReconstructionUtil.integrate_frame(
-                        ImageUtil.flip_channels(colour_image), estimated_depth_image, np.linalg.inv(tracker_w_t_c),
-                        o3d_intrinsics, self.__tsdf
-                    )
-
-                    end = timer()
-                    print(f"  - Fusion Time: {end - start}s")
-
-                    # TODO: Comment here.
-                    acquired: bool = self.__detection_lock.acquire(blocking=False)
-                    if acquired:
-                        try:
-                            if self.__instance_segmentation is not None:
-                                cv2.imshow("Instance Segmentation", self.__instance_segmentation)
-                            self.__detection_colour_image = colour_image.copy()
-                            self.__detection_depth_image = estimated_depth_image.copy()
-                            self.__detection_w_t_c = tracker_w_t_c.copy()
-                            self.__detection_input_is_ready = True
-                            self.__detection_input_ready.notify()
-                        finally:
-                            self.__detection_lock.release()
-
-            # TODO: Comment here.
-            if self.__server.peek_newest_frame(client_id, receiver):
+            # If the server has any frames from the client that have not yet been processed, get the colour image
+            # from the most recent one.
+            if self.__server.peek_newest_frame(self.__client_id, receiver):
                 newest_colour_image = receiver.get_rgb_image()
 
-            # TODO: Comment here.
+            # If we've ever seen a frame:
             if newest_colour_image is not None:
-                # TODO: Comment here.
+                # Show the most recent colour image.
                 cv2.imshow("MVDepth -> Open3D Mapping System", newest_colour_image)
                 c: int = cv2.waitKey(1)
 
-                # TODO: Comment here.
+                # If the user presses 'v', exit.
                 if c == ord('v'):
-                    cv2.destroyAllWindows()
                     return self.terminate()
 
     def terminate(self) -> Tuple[o3d.pipelines.integration.ScalableTSDFVolume, List[ObjectDetector3D.Object3D]]:
-        """
-        Destroy the mapping system.
-
-        :return:    TODO
-        """
+        """Destroy the mapping system."""
         if not self.__should_terminate.is_set():
-            # TODO: Comment here.
             self.__should_terminate.set()
 
-            # TODO: Comment here.
+            # Join any running threads.
             if self.__detection_thread is not None:
                 self.__detection_thread.join()
+            if self.__mapping_thread is not None:
+                self.__mapping_thread.join()
 
         return self.__tsdf, self.__objects
 
     # PRIVATE METHODS
 
     def __run_detection(self) -> None:
-        print("Starting object detector...", flush=True)
+        """Run the detection thread."""
+        # Construct the instance segmenter and object detector.
         instance_segmenter: InstanceSegmenter = InstanceSegmenter.make_mask_rcnn()
         object_detector: ObjectDetector3D = ObjectDetector3D(instance_segmenter)
-        print("Object detector started", flush=True)
 
+        # Until termination is requested:
         while not self.__should_terminate.is_set():
             with self.__detection_lock:
+                # Wait for a detection request. If termination is requested whilst waiting, exit.
                 while not self.__detection_input_is_ready:
                     self.__detection_input_ready.wait(0.1)
                     if self.__should_terminate.is_set():
@@ -204,8 +151,8 @@ class MVDepthOpen3DMappingSystem:
                 end = timer()
                 print(f"  - Segmentation Time: {end - start}s")
 
-                # Draw the 2D instances so that they can be shown to the user.
-                self.__instance_segmentation = instance_segmenter.draw_raw_instances(
+                # Draw the 2D instance segmentation so that it can be shown to the user.
+                instance_segmentation: np.ndarray = instance_segmenter.draw_raw_instances(
                     raw_instances, self.__detection_colour_image
                 )
 
@@ -215,14 +162,104 @@ class MVDepthOpen3DMappingSystem:
 
                 start = timer()
 
-                # TODO: Comment here.
+                # Lift relevant 2D instances to 3D objects.
+                # TODO: Ultimately, they should be fused in - this is a first pass.
                 instances: List[InstanceSegmenter.Instance] = instance_segmenter.parse_raw_instances(raw_instances)
                 instances = [instance for instance in instances if instance.label != "book"]
-                self.__objects += object_detector.lift_to_3d(
+                objects: List[ObjectDetector3D.Object3D] = object_detector.lift_to_3d(
                     instances, self.__detection_depth_image, self.__detection_w_t_c, intrinsics
                 )
 
                 end = timer()
                 print(f"  - Lifting Time: {end - start}s")
 
+                with self.__scene_lock:
+                    # Add the detected 3D objects to the overall list.
+                    self.__objects += objects
+
+                    # Share the instance segmentation with other threads.
+                    self.__instance_segmentation = instance_segmentation.copy()
+
+                # Signal that the detector is now idle.
                 self.__detection_input_is_ready = False
+
+    def __run_mapping(self) -> None:
+        """Run the mapping thread."""
+        frame_idx: int = 0
+        receiver: RGBDFrameReceiver = RGBDFrameReceiver()
+
+        # Until termination is requested:
+        while not self.__should_terminate.is_set():
+            # If the server has a frame from the client that has not yet been processed:
+            if self.__server.has_frames_now(self.__client_id):
+                # Get the camera parameters from the server.
+                height, width, _ = self.__server.get_image_shapes(self.__client_id)[0]
+                intrinsics: Tuple[float, float, float, float] = self.__server.get_intrinsics(self.__client_id)[0]
+
+                # Record them so that other threads have access to them.
+                with self.__parameters_lock:
+                    self.__image_size = (width, height)
+                    self.__intrinsics = intrinsics
+
+                # Pass the camera intrinsics to the depth estimator.
+                self.__depth_estimator.set_intrinsics(GeometryUtil.intrinsics_to_matrix(intrinsics))
+
+                # Get the frame from the server.
+                self.__server.get_frame(self.__client_id, receiver)
+                colour_image: np.ndarray = receiver.get_rgb_image()
+                mapping_w_t_c: np.ndarray = receiver.get_pose()
+
+                # If an output directory was specified and we're saving frames, save the frame to disk.
+                if self.__output_dir is not None and self.__save_frames:
+                    depth_image: np.ndarray = receiver.get_depth_image()
+                    RGBDSequenceUtil.save_frame(
+                        frame_idx, self.__output_dir, colour_image, depth_image, mapping_w_t_c,
+                        colour_intrinsics=intrinsics, depth_intrinsics=intrinsics
+                    )
+                    frame_idx += 1
+
+                # Try to estimate a depth image for the frame.
+                start = timer()
+
+                estimated_depth_image: Optional[np.ndarray] = self.__depth_estimator.estimate_depth(
+                    colour_image, mapping_w_t_c
+                )
+
+                end = timer()
+                print(f"  - Depth Estimation Time: {end - start}s")
+
+                # If a depth image was successfully estimated:
+                if estimated_depth_image is not None:
+                    # Limit its range to 3m (more distant points can be unreliable).
+                    estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
+
+                    # Fuse the frame into the TSDF.
+                    start = timer()
+
+                    fx, fy, cx, cy = intrinsics
+                    o3d_intrinsics: o3d.camera.PinholeCameraIntrinsic = o3d.camera.PinholeCameraIntrinsic(
+                        width, height, fx, fy, cx, cy
+                    )
+                    ReconstructionUtil.integrate_frame(
+                        ImageUtil.flip_channels(colour_image), estimated_depth_image, np.linalg.inv(mapping_w_t_c),
+                        o3d_intrinsics, self.__tsdf
+                    )
+
+                    end = timer()
+                    print(f"  - Fusion Time: {end - start}s")
+
+                    # If no frame is currently being processed by the 3D object detector, schedule this one.
+                    acquired: bool = self.__detection_lock.acquire(blocking=False)
+                    if acquired:
+                        try:
+                            if not self.__detection_input_is_ready:
+                                self.__detection_colour_image = colour_image.copy()
+                                self.__detection_depth_image = estimated_depth_image.copy()
+                                self.__detection_w_t_c = mapping_w_t_c.copy()
+                                self.__detection_input_is_ready = True
+                                self.__detection_input_ready.notify()
+                        finally:
+                            self.__detection_lock.release()
+            else:
+                # If no new frame is currently available, wait for 10ms to avoid a spin loop.
+                time.sleep(0.01)

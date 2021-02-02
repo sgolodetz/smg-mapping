@@ -1,3 +1,4 @@
+import cv2
 import numpy as np
 import open3d as o3d
 import os
@@ -67,6 +68,9 @@ def main() -> None:
 
         # Run the mapping system.
         tsdf, objects = mapping_system.run()
+
+        # Destroy any remaining OpenCV windows.
+        cv2.destroyAllWindows()
 
         # Visualise the reconstructed map.
         grid: o3d.geometry.LineSet = VisualisationUtil.make_voxel_grid([-3, -2, -3], [3, 0, 3], [1, 1, 1])
