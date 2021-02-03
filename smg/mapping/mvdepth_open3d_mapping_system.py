@@ -178,11 +178,9 @@ class MVDepthOpen3DMappingSystem:
                 print(f"  - Lifting Time: {end - start}s")
 
                 with self.__scene_lock:
-                    # Add the detected 3D objects to the overall list.
-                    self.__objects += objects
-
-                    # Share the instance segmentation with other threads.
+                    # Share the instance segmentation and the detected 3D objects with other threads.
                     self.__instance_segmentation = instance_segmentation.copy()
+                    self.__objects = objects
 
                 # Signal that the detector is now idle.
                 self.__detection_input_is_ready = False
