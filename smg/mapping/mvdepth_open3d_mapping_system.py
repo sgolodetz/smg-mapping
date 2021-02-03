@@ -98,7 +98,7 @@ class MVDepthOpen3DMappingSystem:
             # If we've ever seen a frame:
             if newest_colour_image is not None:
                 # Show the most recent colour image.
-                cv2.imshow("MVDepth -> Open3D Mapping System", newest_colour_image)
+                cv2.imshow("MVDepth -> Open3D Server", newest_colour_image)
                 c: int = cv2.waitKey(1)
 
                 # If the user presses 'v', exit.

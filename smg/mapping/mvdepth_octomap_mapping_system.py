@@ -100,7 +100,7 @@ class MVDepthOctomapMappingSystem:
         # Initialise PyGame and create the window.
         pygame.init()
         pygame.display.set_mode(self.__window_size, pygame.DOUBLEBUF | pygame.OPENGL)
-        pygame.display.set_caption("MVDepth -> Octomap Mapping System")
+        pygame.display.set_caption("MVDepth -> Octomap Server")
 
         # Enable the z-buffer.
         glEnable(GL_DEPTH_TEST)
