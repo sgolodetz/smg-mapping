@@ -11,12 +11,12 @@ from typing import Dict, List, Optional, Tuple
 
 from smg.mapping.metric import MetricDroneFSM
 from smg.mapping.remote import MappingClient, RGBDFrameMessageUtil
-from smg.opengl import OpenGLImageRenderer, OpenGLMatrixContext, OpenGLUtil
+from smg.opengl import CameraRenderer, OpenGLImageRenderer, OpenGLMatrixContext, OpenGLUtil
 from smg.pyorbslam2 import MonocularTracker
 from smg.relocalisation import ArUcoPnPRelocaliser
 from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
-from smg.rigging.helpers import CameraPoseConverter, CameraRenderer
+from smg.rigging.helpers import CameraPoseConverter
 from smg.rotory import DroneFactory
 from smg.rotory.joysticks import FutabaT6K
 from smg.utility import ImageUtil, TrajectorySmoother
