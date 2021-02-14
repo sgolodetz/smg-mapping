@@ -3,7 +3,7 @@ import struct
 
 from typing import List, Tuple
 
-from .message import Message
+from ..base.message import Message
 
 
 class FrameMessage(Message):

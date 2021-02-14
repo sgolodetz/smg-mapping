@@ -4,7 +4,7 @@ import struct
 from itertools import chain
 from typing import List, Tuple
 
-from .message import Message
+from ..base.message import Message
 
 
 class FrameHeaderMessage(Message):

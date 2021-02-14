@@ -8,8 +8,8 @@ from typing import Callable, Dict, Optional, List, Set, Tuple
 
 from smg.utility import PooledQueue
 
-from .mapping_client_handler import MappingClientHandler
 from .frame_message import FrameMessage
+from .mapping_client_handler import MappingClientHandler
 
 
 class MappingServer:

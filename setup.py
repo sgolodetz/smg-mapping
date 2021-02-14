@@ -15,7 +15,9 @@ setup(
     packages=find_packages(include=["smg.mapping", "smg.mapping.*"]),
     include_package_data=True,
     install_requires=[
+        "smg-detectron2",
         "smg-mvdepthnet",
+        "smg-open3d",
         "smg-pyoctomap",
         "smg-pyremode"
     ],
