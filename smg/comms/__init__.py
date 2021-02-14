@@ -1,1 +1,1 @@
-from smg.comms.frames.mapping_server import MappingServer
+from smg.comms.mapping.mapping_server import MappingServer

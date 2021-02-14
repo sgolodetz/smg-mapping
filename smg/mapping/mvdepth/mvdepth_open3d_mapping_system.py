@@ -9,7 +9,7 @@ from detectron2.structures import Instances
 from timeit import default_timer as timer
 from typing import List, Optional, Tuple
 
-from smg.comms import MappingServer, RGBDFrameReceiver
+from smg.comms.mapping import MappingServer, RGBDFrameReceiver
 from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
 from smg.mvdepthnet import MonocularDepthEstimator
 from smg.open3d import ReconstructionUtil
