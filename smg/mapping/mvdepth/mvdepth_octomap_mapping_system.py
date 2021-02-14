@@ -1,44 +1,60 @@
 import cv2
 import detectron2
 import numpy as np
-import open3d as o3d
+import os
+
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
+import pygame
+
 import threading
 import time
 
 from detectron2.structures import Instances
+from OpenGL.GL import *
 from timeit import default_timer as timer
 from typing import List, Optional, Tuple
 
+from smg.comms import MappingServer, RGBDFrameReceiver
 from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
-from smg.mapping.remote import MappingServer, RGBDFrameReceiver
 from smg.mvdepthnet import MonocularDepthEstimator
-from smg.open3d import ReconstructionUtil
-from smg.utility import GeometryUtil, ImageUtil, RGBDSequenceUtil
+from smg.opengl import OpenGLMatrixContext, OpenGLUtil
+from smg.pyoctomap import CM_COLOR_HEIGHT, OctomapUtil, OcTree, OcTreeDrawer, Pointcloud, Vector3
+from smg.rigging.cameras import SimpleCamera
+from smg.rigging.controllers import KeyboardCameraController
+from smg.rigging.helpers import CameraPoseConverter
+from smg.utility import GeometryUtil, RGBDSequenceUtil
 
 
-class MVDepthOpen3DMappingSystem:
-    """A mapping system that estimates depths using MVDepthNet and reconstructs an Open3D TSDF."""
+class MVDepthOctomapMappingSystem:
+    """A mapping system that estimates depths using MVDepthNet and reconstructs an Octomap."""
 
     # CONSTRUCTOR
 
-    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
-                 detect_objects: bool = False, output_dir: Optional[str] = None, save_frames: bool = False):
+    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *, camera_mode: str = "free",
+                 detect_objects: bool = False, output_dir: Optional[str] = None, save_frames: bool = False,
+                 save_reconstruction: bool = False, window_size: Tuple[int, int] = (640, 480)):
         """
-        Construct a mapping system that estimates depths using MVDepthNet and reconstructs an Open3D TSDF.
+        Construct a mapping system that estimates depths using MVDepthNet and reconstructs an Octomap.
 
-        :param server:          The mapping server.
-        :param depth_estimator: The monocular depth estimator.
-        :param detect_objects:  Whether to detect 3D objects.
-        :param output_dir:      An optional directory into which to save output files.
-        :param save_frames:     Whether to save the sequence of frames used to reconstruct the TSDF.
+        :param server:              The mapping server.
+        :param depth_estimator:     The monocular depth estimator.
+        :param camera_mode:         The camera mode to use (follow|free).
+        :param detect_objects:      Whether to detect 3D objects.
+        :param output_dir:          An optional directory into which to save output files.
+        :param save_frames:         Whether to save the sequence of frames used to reconstruct the Octomap.
+        :param save_reconstruction: Whether to save the reconstructed Octomap.
+        :param window_size:         The size of window to use.
         """
+        self.__camera_mode: str = camera_mode
         self.__client_id: int = 0
         self.__depth_estimator: MonocularDepthEstimator = depth_estimator
         self.__detect_objects: bool = detect_objects
         self.__output_dir: Optional[str] = output_dir
         self.__save_frames: bool = save_frames
+        self.__save_reconstruction: bool = save_reconstruction
         self.__server: MappingServer = server
         self.__should_terminate: threading.Event = threading.Event()
+        self.__window_size: Tuple[int, int] = window_size
 
         # The image size and camera intrinsics, together with their lock.
         self.__image_size: Optional[Tuple[int, int]] = None
@@ -51,14 +67,10 @@ class MVDepthOpen3DMappingSystem:
         self.__detection_w_t_c: Optional[np.ndarray] = None
         self.__detection_lock: threading.Lock = threading.Lock()
 
-        # The most recent instance segmentation, the detected 3D objects and the TSDF, together with their lock.
+        # The most recent instance segmentation, the detected 3D objects and the octree, together with their lock.
         self.__instance_segmentation: Optional[np.ndarray] = None
         self.__objects: List[ObjectDetector3D.Object3D] = []
-        self.__tsdf: o3d.pipelines.integration.ScalableTSDFVolume = o3d.pipelines.integration.ScalableTSDFVolume(
-            voxel_length=0.01,
-            sdf_trunc=0.04,
-            color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8
-        )
+        self.__octree: Optional[OcTree] = None
         self.__scene_lock: threading.Lock = threading.Lock()
 
         # The threads and conditions.
@@ -68,16 +80,40 @@ class MVDepthOpen3DMappingSystem:
 
         self.__mapping_thread: Optional[threading.Thread] = None
 
+    # SPECIAL METHODS
+
+    def __enter__(self):
+        """No-op (needed to allow the mapping system's lifetime to be managed by a with statement)."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Destroy the mapping system at the end of the with statement that's used to manage its lifetime."""
+        self.terminate()
+
     # PUBLIC METHODS
 
-    def run(self) -> Tuple[o3d.pipelines.integration.ScalableTSDFVolume, List[ObjectDetector3D.Object3D]]:
-        """
-        Run the mapping system.
-
-        :return:    The results of the reconstruction process, as a (TSDF, list of 3D objects) tuple.
-        """
-        newest_colour_image: Optional[np.ndarray] = None
+    def run(self) -> None:
+        """Run the mapping system."""
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
+        viewing_pose: np.ndarray = np.eye(4)
+
+        # Initialise PyGame and create the window.
+        pygame.init()
+        pygame.display.set_mode(self.__window_size, pygame.DOUBLEBUF | pygame.OPENGL)
+        pygame.display.set_caption("MVDepth -> Octomap Server")
+
+        # Enable the z-buffer.
+        glEnable(GL_DEPTH_TEST)
+        glDepthFunc(GL_LESS)
+
+        # Set up the octree drawer.
+        drawer: OcTreeDrawer = OcTreeDrawer()
+        drawer.set_color_mode(CM_COLOR_HEIGHT)
+
+        # Construct the camera controller.
+        camera_controller: KeyboardCameraController = KeyboardCameraController(
+            SimpleCamera([0, 0, 0], [0, 0, 1], [0, -1, 0]), canonical_angular_speed=0.05, canonical_linear_speed=0.1
+        )
 
         # Start the mapping thread.
         self.__mapping_thread = threading.Thread(target=self.__run_mapping)
@@ -90,20 +126,19 @@ class MVDepthOpen3DMappingSystem:
 
         # Until the mapping system should terminate:
         while not self.__should_terminate.is_set():
-            # If the server has any frames from the client that have not yet been processed, get the colour image
-            # from the most recent one.
-            if self.__server.peek_newest_frame(self.__client_id, receiver):
-                newest_colour_image = receiver.get_rgb_image()
+            # Process any PyGame events.
+            for event in pygame.event.get():
+                # If the user wants to quit:
+                if event.type == pygame.QUIT:
+                    # Shut down pygame, close any remaining OpenCV windows, and exit.
+                    pygame.quit()
+                    cv2.destroyAllWindows()
+                    return
 
-            # If we've ever seen a frame:
-            if newest_colour_image is not None:
-                # Show the most recent colour image.
-                cv2.imshow("MVDepth -> Open3D Server", newest_colour_image)
-                c: int = cv2.waitKey(1)
-
-                # If the user presses 'v', exit.
-                if c == ord('v'):
-                    return self.terminate()
+            # Try to get the camera parameters.
+            with self.__parameters_lock:
+                image_size: Optional[Tuple[int, int]] = self.__image_size
+                intrinsics: Optional[Tuple[float, float, float, float]] = self.__intrinsics
 
             # Show the most recent instance segmentation (if any).
             with self.__scene_lock:
@@ -111,12 +146,49 @@ class MVDepthOpen3DMappingSystem:
                     cv2.imshow("Instance Segmentation", self.__instance_segmentation)
                     cv2.waitKey(1)
 
-    def terminate(self) -> Tuple[o3d.pipelines.integration.ScalableTSDFVolume, List[ObjectDetector3D.Object3D]]:
-        """
-        Destroy the mapping system.
+            # Allow the user to control the camera.
+            camera_controller.update(pygame.key.get_pressed(), timer() * 1000)
 
-        :return:    The results of the reconstruction process, as a (TSDF, list of 3D objects) tuple.
-        """
+            # Clear the colour and depth buffers.
+            glClearColor(1.0, 1.0, 1.0, 1.0)
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
+            # Once at least one frame has been received:
+            if image_size is not None:
+                # Determine the viewing pose.
+                if self.__camera_mode == "follow":
+                    if self.__server.peek_newest_frame(self.__client_id, receiver):
+                        viewing_pose = np.linalg.inv(receiver.get_pose())
+                else:
+                    viewing_pose = camera_controller.get_pose()
+
+                # Set the projection matrix.
+                with OpenGLMatrixContext(GL_PROJECTION, lambda: OpenGLUtil.set_projection_matrix(
+                    GeometryUtil.rescale_intrinsics(intrinsics, image_size, self.__window_size), *self.__window_size
+                )):
+                    # Set the model-view matrix.
+                    with OpenGLMatrixContext(GL_MODELVIEW, lambda: OpenGLUtil.load_matrix(
+                        CameraPoseConverter.pose_to_modelview(viewing_pose)
+                    )):
+                        # Draw the voxel grid.
+                        glColor3f(0.0, 0.0, 0.0)
+                        OpenGLUtil.render_voxel_grid([-3, -2, -3], [3, 0, 3], [1, 1, 1], dotted=True)
+
+                        with self.__scene_lock:
+                            # Draw the octree.
+                            if self.__octree is not None:
+                                OctomapUtil.draw_octree(self.__octree, drawer)
+
+                            # Draw the 3D objects.
+                            glColor3f(1.0, 0.0, 1.0)
+                            for obj in self.__objects:
+                                OpenGLUtil.render_aabb(*obj.box_3d)
+
+            # Swap the front and back buffers.
+            pygame.display.flip()
+
+    def terminate(self) -> None:
+        """Destroy the mapping system."""
         if not self.__should_terminate.is_set():
             self.__should_terminate.set()
 
@@ -126,7 +198,12 @@ class MVDepthOpen3DMappingSystem:
             if self.__mapping_thread is not None:
                 self.__mapping_thread.join()
 
-        return self.__tsdf, self.__objects
+            # If an output directory has been specified and we're saving the reconstruction, save it now.
+            if self.__output_dir is not None and self.__save_reconstruction:
+                os.makedirs(self.__output_dir, exist_ok=True)
+                output_filename: str = os.path.join(self.__output_dir, "octree.bt")
+                print(f"Saving octree to: {output_filename}")
+                self.__octree.write_binary(output_filename)
 
     # PRIVATE METHODS
 
@@ -190,6 +267,11 @@ class MVDepthOpen3DMappingSystem:
         frame_idx: int = 0
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
 
+        # Construct the octree.
+        voxel_size: float = 0.05
+        self.__octree = OcTree(voxel_size)
+        self.__octree.set_occupancy_thres(0.8)
+
         # Until termination is requested:
         while not self.__should_terminate.is_set():
             # If the server has a frame from the client that has not yet been processed:
@@ -235,17 +317,15 @@ class MVDepthOpen3DMappingSystem:
                     # Limit its range to 3m (more distant points can be unreliable).
                     estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
 
-                    # Fuse the frame into the TSDF.
+                    # Use the depth image and pose to make an Octomap point cloud.
+                    pcd: Pointcloud = OctomapUtil.make_point_cloud(estimated_depth_image, mapping_w_t_c, intrinsics)
+
+                    # Fuse the point cloud into the octree.
                     start = timer()
 
-                    fx, fy, cx, cy = intrinsics
-                    o3d_intrinsics: o3d.camera.PinholeCameraIntrinsic = o3d.camera.PinholeCameraIntrinsic(
-                        width, height, fx, fy, cx, cy
-                    )
-                    ReconstructionUtil.integrate_frame(
-                        ImageUtil.flip_channels(colour_image), estimated_depth_image, np.linalg.inv(mapping_w_t_c),
-                        o3d_intrinsics, self.__tsdf
-                    )
+                    with self.__scene_lock:
+                        origin: Vector3 = Vector3(0.0, 0.0, 0.0)
+                        self.__octree.insert_point_cloud(pcd, origin, discretize=True)
 
                     end = timer()
                     print(f"  - Fusion Time: {end - start}s")
