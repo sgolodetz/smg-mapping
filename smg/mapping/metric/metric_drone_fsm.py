@@ -3,7 +3,7 @@ import numpy as np
 from threading import Event
 from typing import Optional, Tuple
 
-from smg.comms import MappingClient, RGBDFrameMessageUtil
+from smg.comms.mapping import MappingClient, RGBDFrameMessageUtil
 from smg.relocalisation.poseglobalisers import MonocularPoseGlobaliser
 from smg.rotory.drones import Drone
 from smg.rotory.joysticks import FutabaT6K
