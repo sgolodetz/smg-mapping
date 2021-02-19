@@ -11,9 +11,11 @@ from typing import List, Optional, Tuple
 
 from smg.comms.base import RGBDFrameReceiver
 from smg.comms.mapping import MappingServer
+from smg.comms.skeletons import RemoteSkeletonDetector
 from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
 from smg.mvdepthnet import MonocularDepthEstimator
 from smg.open3d import ReconstructionUtil
+from smg.skeletons import Skeleton, SkeletonUtil
 from smg.utility import GeometryUtil, ImageUtil, RGBDSequenceUtil
 
 
@@ -40,6 +42,7 @@ class MVDepthOpen3DMappingSystem:
         self.__save_frames: bool = save_frames
         self.__server: MappingServer = server
         self.__should_terminate: threading.Event = threading.Event()
+        self.__skeleton_detector: RemoteSkeletonDetector = RemoteSkeletonDetector()
 
         # The image size and camera intrinsics, together with their lock.
         self.__image_size: Optional[Tuple[int, int]] = None
@@ -221,6 +224,11 @@ class MVDepthOpen3DMappingSystem:
                     )
                     frame_idx += 1
 
+                # Start trying to detect any skeletons in the colour image. If this fails, skip this frame.
+                if not self.__skeleton_detector.begin_detection(colour_image, mapping_w_t_c):
+                    time.sleep(0.01)
+                    continue
+
                 # Try to estimate a depth image for the frame.
                 start = timer()
 
@@ -236,6 +244,14 @@ class MVDepthOpen3DMappingSystem:
                     # Limit its range to 3m (more distant points can be unreliable).
                     estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
 
+                    # Remove any detected people.
+                    skeletons: Optional[List[Skeleton]] = self.__skeleton_detector.end_detection()
+                    depopulated_depth_image: np.ndarray = estimated_depth_image.copy()
+                    if skeletons is not None:
+                        depopulated_depth_image = SkeletonUtil.depopulate_depth_image(
+                            skeletons, estimated_depth_image, mapping_w_t_c, intrinsics
+                        )
+
                     # Fuse the frame into the TSDF.
                     start = timer()
 
@@ -244,7 +260,7 @@ class MVDepthOpen3DMappingSystem:
                         width, height, fx, fy, cx, cy
                     )
                     ReconstructionUtil.integrate_frame(
-                        ImageUtil.flip_channels(colour_image), estimated_depth_image, np.linalg.inv(mapping_w_t_c),
+                        ImageUtil.flip_channels(colour_image), depopulated_depth_image, np.linalg.inv(mapping_w_t_c),
                         o3d_intrinsics, self.__tsdf
                     )
 

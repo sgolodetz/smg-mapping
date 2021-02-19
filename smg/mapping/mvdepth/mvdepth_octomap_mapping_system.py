@@ -16,6 +16,7 @@ from typing import List, Optional, Tuple
 
 from smg.comms.base import RGBDFrameReceiver
 from smg.comms.mapping import MappingServer
+from smg.comms.skeletons import RemoteSkeletonDetector
 from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
 from smg.mvdepthnet import MonocularDepthEstimator
 from smg.opengl import OpenGLMatrixContext, OpenGLUtil
@@ -23,6 +24,7 @@ from smg.pyoctomap import CM_COLOR_HEIGHT, OctomapUtil, OcTree, OcTreeDrawer, Po
 from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
 from smg.rigging.helpers import CameraPoseConverter
+from smg.skeletons import Skeleton, SkeletonRenderer, SkeletonUtil
 from smg.utility import GeometryUtil, RGBDSequenceUtil
 
 
@@ -55,6 +57,7 @@ class MVDepthOctomapMappingSystem:
         self.__save_reconstruction: bool = save_reconstruction
         self.__server: MappingServer = server
         self.__should_terminate: threading.Event = threading.Event()
+        self.__skeleton_detector: RemoteSkeletonDetector = RemoteSkeletonDetector()
         self.__window_size: Tuple[int, int] = window_size
 
         # The image size and camera intrinsics, together with their lock.
@@ -73,6 +76,7 @@ class MVDepthOctomapMappingSystem:
         self.__objects: List[ObjectDetector3D.Object3D] = []
         self.__octree: Optional[OcTree] = None
         self.__scene_lock: threading.Lock = threading.Lock()
+        self.__skeletons: List[Skeleton] = []
 
         # The threads and conditions.
         self.__detection_thread: Optional[threading.Thread] = None
@@ -184,6 +188,10 @@ class MVDepthOctomapMappingSystem:
                             glColor3f(1.0, 0.0, 1.0)
                             for obj in self.__objects:
                                 OpenGLUtil.render_aabb(*obj.box_3d)
+
+                            # Draw the 3D skeletons.
+                            for skeleton in self.__skeletons:
+                                SkeletonRenderer.render_skeleton(skeleton)
 
             # Swap the front and back buffers.
             pygame.display.flip()
@@ -303,6 +311,11 @@ class MVDepthOctomapMappingSystem:
                     )
                     frame_idx += 1
 
+                # Start trying to detect any skeletons in the colour image. If this fails, skip this frame.
+                if not self.__skeleton_detector.begin_detection(colour_image, mapping_w_t_c):
+                    time.sleep(0.01)
+                    continue
+
                 # Try to estimate a depth image for the frame.
                 start = timer()
 
@@ -315,11 +328,23 @@ class MVDepthOctomapMappingSystem:
 
                 # If a depth image was successfully estimated:
                 if estimated_depth_image is not None:
-                    # Limit its range to 3m (more distant points can be unreliable).
+                    # Limit the depth range to 3m (more distant points can be unreliable).
                     estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
 
+                    # Make any skeletons that were detected available to other threads.
+                    skeletons: Optional[List[Skeleton]] = self.__skeleton_detector.end_detection()
+                    with self.__scene_lock:
+                        self.__skeletons = skeletons if skeletons is not None else []
+
+                    # Remove any detected people from the depth image.
+                    depopulated_depth_image: np.ndarray = estimated_depth_image.copy()
+                    if skeletons is not None:
+                        depopulated_depth_image = SkeletonUtil.depopulate_depth_image(
+                            skeletons, estimated_depth_image, mapping_w_t_c, intrinsics
+                        )
+
                     # Use the depth image and pose to make an Octomap point cloud.
-                    pcd: Pointcloud = OctomapUtil.make_point_cloud(estimated_depth_image, mapping_w_t_c, intrinsics)
+                    pcd: Pointcloud = OctomapUtil.make_point_cloud(depopulated_depth_image, mapping_w_t_c, intrinsics)
 
                     # Fuse the point cloud into the octree.
                     start = timer()
