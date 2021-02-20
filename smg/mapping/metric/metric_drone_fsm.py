@@ -17,15 +17,15 @@ class EDroneState(int):
 
 
 # Fly around as normal with non-metric tracking.
-DS_NON_METRIC: EDroneState = 0
+DS_NON_METRIC = EDroneState(0)
 # Fly around in front of the marker to set the reference space.
-DS_SETTING_REFERENCE: EDroneState = 1
+DS_SETTING_REFERENCE = EDroneState(1)
 # Land prior to training the globaliser to estimate the scale.
-DS_PREPARING_TO_TRAIN: EDroneState = 2
+DS_PREPARING_TO_TRAIN = EDroneState(2)
 # Whilst on the ground, train the globaliser to estimate the scale.
-DS_TRAINING: EDroneState = 3
+DS_TRAINING = EDroneState(3)
 # Fly around as normal with metric tracking.
-DS_METRIC: EDroneState = 4
+DS_METRIC = EDroneState(4)
 
 
 class MetricDroneFSM:
