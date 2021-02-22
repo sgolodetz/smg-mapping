@@ -24,7 +24,7 @@ from smg.pyoctomap import CM_COLOR_HEIGHT, OctomapUtil, OcTree, OcTreeDrawer, Po
 from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
 from smg.rigging.helpers import CameraPoseConverter
-from smg.skeletons import Skeleton, SkeletonRenderer
+from smg.skeletons import Skeleton, SkeletonRenderer, SkeletonUtil
 from smg.utility import GeometryUtil, RGBDSequenceUtil
 
 
@@ -340,7 +340,7 @@ class MVDepthOctomapMappingSystem:
                     depopulated_depth_image: np.ndarray = estimated_depth_image.copy()
                     # if skeletons is not None:
                     #     depopulated_depth_image = SkeletonUtil.depopulate_depth_image(
-                    #         skeletons, estimated_depth_image, mapping_w_t_c, intrinsics
+                    #         skeletons, estimated_depth_image, mapping_w_t_c, intrinsics, debug=True
                     #     )
 
                     # Use the depth image and pose to make an Octomap point cloud.
@@ -365,13 +365,13 @@ class MVDepthOctomapMappingSystem:
                         )
                         k: int = int((rasterisation_voxel_size // voxel_size) // 2)
                         for voxel_centre in voxel_centres:
-                            with self.__scene_lock:
-                                for x in range(-k, k+1):
-                                    for y in range(-k, k+1):
-                                        for z in range(-k, k+1):
-                                            p: np.ndarray = voxel_centre + np.array([
-                                                x * voxel_size, y * voxel_size, z * voxel_size
-                                            ])
+                            for x in range(-k, k+1):
+                                for y in range(-k, k+1):
+                                    for z in range(-k, k+1):
+                                        p: np.ndarray = voxel_centre + np.array([
+                                            x * voxel_size, y * voxel_size, z * voxel_size
+                                        ])
+                                        with self.__scene_lock:
                                             self.__octree.delete_node(Vector3(*p))
                     end = timer()
                     print(f"Deletion Time: {end - start}s")
