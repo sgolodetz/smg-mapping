@@ -24,7 +24,7 @@ from smg.pyoctomap import CM_COLOR_HEIGHT, OctomapUtil, OcTree, OcTreeDrawer, Po
 from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
 from smg.rigging.helpers import CameraPoseConverter
-from smg.skeletons import Skeleton, SkeletonRenderer, SkeletonUtil
+from smg.skeletons import Skeleton, SkeletonRenderer
 from smg.utility import GeometryUtil, RGBDSequenceUtil
 
 
@@ -338,10 +338,10 @@ class MVDepthOctomapMappingSystem:
 
                     # Remove any detected people from the depth image.
                     depopulated_depth_image: np.ndarray = estimated_depth_image.copy()
-                    if skeletons is not None:
-                        depopulated_depth_image = SkeletonUtil.depopulate_depth_image(
-                            skeletons, estimated_depth_image, mapping_w_t_c, intrinsics
-                        )
+                    # if skeletons is not None:
+                    #     depopulated_depth_image = SkeletonUtil.depopulate_depth_image(
+                    #         skeletons, estimated_depth_image, mapping_w_t_c, intrinsics
+                    #     )
 
                     # Use the depth image and pose to make an Octomap point cloud.
                     pcd: Pointcloud = OctomapUtil.make_point_cloud(depopulated_depth_image, mapping_w_t_c, intrinsics)
@@ -355,6 +355,26 @@ class MVDepthOctomapMappingSystem:
 
                     end = timer()
                     print(f"  - Fusion Time: {end - start}s")
+
+                    start = timer()
+                    for skeleton in skeletons:
+                        from smg.utility import ShapeUtil
+                        rasterisation_voxel_size: float = 0.25  # must be an odd multiple of voxel_size
+                        voxel_centres: List[np.ndarray] = ShapeUtil.rasterise_shapes(
+                            skeleton.bounding_shapes, rasterisation_voxel_size
+                        )
+                        k: int = int((rasterisation_voxel_size // voxel_size) // 2)
+                        for voxel_centre in voxel_centres:
+                            with self.__scene_lock:
+                                for x in range(-k, k+1):
+                                    for y in range(-k, k+1):
+                                        for z in range(-k, k+1):
+                                            p: np.ndarray = voxel_centre + np.array([
+                                                x * voxel_size, y * voxel_size, z * voxel_size
+                                            ])
+                                            self.__octree.delete_node(Vector3(*p))
+                    end = timer()
+                    print(f"Deletion Time: {end - start}s")
 
                     # If no frame is currently being processed by the 3D object detector, schedule this one.
                     acquired: bool = self.__detection_lock.acquire(blocking=False)
