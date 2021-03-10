@@ -245,7 +245,7 @@ class MVDepthOpen3DMappingSystem:
                     estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
 
                     # Remove any detected people.
-                    skeletons: Optional[List[Skeleton]] = self.__skeleton_detector.end_detection()
+                    skeletons, people_mask = self.__skeleton_detector.end_detection()
                     depopulated_depth_image: np.ndarray = estimated_depth_image.copy()
                     if skeletons is not None:
                         depopulated_depth_image = SkeletonUtil.depopulate_depth_image(
