@@ -343,7 +343,7 @@ class MVDepthOctomapMappingSystem:
                     # Remove any detected people from the depth image.
                     depopulated_depth_image: np.ndarray = estimated_depth_image.copy()
                     if people_mask is not None:
-                        depopulated_depth_image = SkeletonUtil.depopulate_depth_image_using_people_mask(
+                        depopulated_depth_image = SkeletonUtil.depopulate_depth_image(
                             depopulated_depth_image, people_mask
                         )
 
