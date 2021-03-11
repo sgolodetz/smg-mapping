@@ -224,6 +224,10 @@ class MVDepthOpen3DMappingSystem:
                     )
                     frame_idx += 1
 
+                # Set the camera calibration.
+                # FIXME: Do this once.
+                self.__skeleton_detector.set_calibration((width, height), intrinsics)
+
                 # Start trying to detect any skeletons in the colour image. If this fails, skip this frame.
                 if not self.__skeleton_detector.begin_detection(colour_image, mapping_w_t_c):
                     time.sleep(0.01)
@@ -247,9 +251,9 @@ class MVDepthOpen3DMappingSystem:
                     # Remove any detected people.
                     skeletons, people_mask = self.__skeleton_detector.end_detection()
                     depopulated_depth_image: np.ndarray = estimated_depth_image.copy()
-                    if skeletons is not None:
-                        depopulated_depth_image = SkeletonUtil.depopulate_depth_image_using_3d_boxes(
-                            skeletons, estimated_depth_image, mapping_w_t_c, intrinsics
+                    if people_mask is not None:
+                        depopulated_depth_image = SkeletonUtil.depopulate_depth_image(
+                            estimated_depth_image, people_mask
                         )
 
                     # Fuse the frame into the TSDF.
