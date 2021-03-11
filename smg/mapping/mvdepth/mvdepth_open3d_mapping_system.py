@@ -248,7 +248,7 @@ class MVDepthOpen3DMappingSystem:
                     skeletons, people_mask = self.__skeleton_detector.end_detection()
                     depopulated_depth_image: np.ndarray = estimated_depth_image.copy()
                     if skeletons is not None:
-                        depopulated_depth_image = SkeletonUtil.depopulate_depth_image(
+                        depopulated_depth_image = SkeletonUtil.depopulate_depth_image_using_3d_boxes(
                             skeletons, estimated_depth_image, mapping_w_t_c, intrinsics
                         )
 
