@@ -224,7 +224,7 @@ class MVDepthOpen3DMappingSystem:
                     )
                     frame_idx += 1
 
-                # Set the camera calibration.
+                # Set the camera calibration for the skeleton detector.
                 # FIXME: Do this once.
                 self.__skeleton_detector.set_calibration((width, height), intrinsics)
 

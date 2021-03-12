@@ -33,9 +33,10 @@ class MVDepthOctomapMappingSystem:
 
     # CONSTRUCTOR
 
-    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *, camera_mode: str = "free",
-                 detect_objects: bool = False, output_dir: Optional[str] = None, save_frames: bool = False,
-                 save_reconstruction: bool = False, window_size: Tuple[int, int] = (640, 480)):
+    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
+                 camera_mode: str = "free", detect_objects: bool = False, detect_skeletons: bool = True,
+                 output_dir: Optional[str] = None, save_frames: bool = False, save_reconstruction: bool = False,
+                 window_size: Tuple[int, int] = (640, 480)):
         """
         Construct a mapping system that estimates depths using MVDepthNet and reconstructs an Octomap.
 
@@ -43,6 +44,7 @@ class MVDepthOctomapMappingSystem:
         :param depth_estimator:     The monocular depth estimator.
         :param camera_mode:         The camera mode to use (follow|free).
         :param detect_objects:      Whether to detect 3D objects.
+        :param detect_skeletons:    Whether to detect 3D skeletons.
         :param output_dir:          An optional directory into which to save output files.
         :param save_frames:         Whether to save the sequence of frames used to reconstruct the Octomap.
         :param save_reconstruction: Whether to save the reconstructed Octomap.
@@ -52,12 +54,12 @@ class MVDepthOctomapMappingSystem:
         self.__client_id: int = 0
         self.__depth_estimator: MonocularDepthEstimator = depth_estimator
         self.__detect_objects: bool = detect_objects
+        self.__detect_skeletons: bool = detect_skeletons
         self.__output_dir: Optional[str] = output_dir
         self.__save_frames: bool = save_frames
         self.__save_reconstruction: bool = save_reconstruction
         self.__server: MappingServer = server
         self.__should_terminate: threading.Event = threading.Event()
-        self.__skeleton_detector: RemoteSkeletonDetector = RemoteSkeletonDetector()
         self.__window_size: Tuple[int, int] = window_size
 
         # The image size and camera intrinsics, together with their lock.
@@ -275,6 +277,8 @@ class MVDepthOctomapMappingSystem:
         """Run the mapping thread."""
         frame_idx: int = 0
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
+        skeleton_detector: Optional[RemoteSkeletonDetector] = RemoteSkeletonDetector() \
+            if self.__detect_skeletons else None
 
         # Construct the octree.
         voxel_size: float = 0.05
@@ -311,14 +315,16 @@ class MVDepthOctomapMappingSystem:
                     )
                     frame_idx += 1
 
-                # Set the camera calibration.
-                # FIXME: Do this once.
-                self.__skeleton_detector.set_calibration((width, height), intrinsics)
+                # If we're detecting skeletons:
+                if self.__detect_skeletons:
+                    # Set the camera calibration for the skeleton detector.
+                    # FIXME: Do this once.
+                    skeleton_detector.set_calibration((width, height), intrinsics)
 
-                # Start trying to detect any skeletons in the colour image. If this fails, skip this frame.
-                if not self.__skeleton_detector.begin_detection(colour_image, mapping_w_t_c):
-                    time.sleep(0.01)
-                    continue
+                    # Start trying to detect any skeletons in the colour image. If this fails, skip this frame.
+                    if not skeleton_detector.begin_detection(colour_image, mapping_w_t_c):
+                        time.sleep(0.01)
+                        continue
 
                 # Try to estimate a depth image for the frame.
                 start = timer()
@@ -335,8 +341,13 @@ class MVDepthOctomapMappingSystem:
                     # Limit the depth range to 3m (more distant points can be unreliable).
                     estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
 
+                    # Get any skeletons that we were detecting.
+                    if self.__detect_skeletons:
+                        skeletons, people_mask = skeleton_detector.end_detection()
+                    else:
+                        skeletons, people_mask = (None, None)
+
                     # Make any skeletons that were detected available to other threads.
-                    skeletons, people_mask = self.__skeleton_detector.end_detection()
                     with self.__scene_lock:
                         self.__skeletons = skeletons if skeletons is not None else []
 
