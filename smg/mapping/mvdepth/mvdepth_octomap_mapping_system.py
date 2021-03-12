@@ -67,11 +67,11 @@ class MVDepthOctomapMappingSystem:
         self.__intrinsics: Optional[Tuple[float, float, float, float]] = None
         self.__parameters_lock: threading.Lock = threading.Lock()
 
-        # The detection inputs, together with their lock.
-        self.__detection_colour_image: Optional[np.ndarray] = None
-        self.__detection_depth_image: Optional[np.ndarray] = None
-        self.__detection_w_t_c: Optional[np.ndarray] = None
-        self.__detection_lock: threading.Lock = threading.Lock()
+        # The object detection inputs, together with their lock.
+        self.__object_detection_colour_image: Optional[np.ndarray] = None
+        self.__object_detection_depth_image: Optional[np.ndarray] = None
+        self.__object_detection_w_t_c: Optional[np.ndarray] = None
+        self.__object_detection_lock: threading.Lock = threading.Lock()
 
         # The most recent instance segmentation, the detected 3D objects and the octree, together with their lock.
         self.__instance_segmentation: Optional[np.ndarray] = None
@@ -81,11 +81,11 @@ class MVDepthOctomapMappingSystem:
         self.__skeletons: List[Skeleton] = []
 
         # The threads and conditions.
-        self.__detection_thread: Optional[threading.Thread] = None
-        self.__detection_input_is_ready: bool = False
-        self.__detection_input_ready: threading.Condition = threading.Condition(self.__detection_lock)
-
         self.__mapping_thread: Optional[threading.Thread] = None
+
+        self.__object_detection_thread: Optional[threading.Thread] = None
+        self.__object_detection_input_is_ready: bool = False
+        self.__object_detection_input_ready: threading.Condition = threading.Condition(self.__object_detection_lock)
 
         self.__skeleton_detection_thread: Optional[threading.Thread] = None
 
@@ -128,10 +128,10 @@ class MVDepthOctomapMappingSystem:
         self.__mapping_thread = threading.Thread(target=self.__run_mapping)
         self.__mapping_thread.start()
 
-        # If we're detecting 3D objects, start the detection thread.
+        # If we're detecting 3D objects, start the object detection thread.
         if self.__detect_objects:
-            self.__detection_thread = threading.Thread(target=self.__run_detection)
-            self.__detection_thread.start()
+            self.__object_detection_thread = threading.Thread(target=self.__run_object_detection)
+            self.__object_detection_thread.start()
 
         # If we're detecting 3D skeletons, start the skeleton detection thread.
         if self.__detect_skeletons:
@@ -211,10 +211,10 @@ class MVDepthOctomapMappingSystem:
             self.__should_terminate.set()
 
             # Join any running threads.
-            if self.__detection_thread is not None:
-                self.__detection_thread.join()
             if self.__mapping_thread is not None:
                 self.__mapping_thread.join()
+            if self.__object_detection_thread is not None:
+                self.__object_detection_thread.join()
             if self.__skeleton_detection_thread is not None:
                 self.__skeleton_detection_thread.join()
 
@@ -226,61 +226,6 @@ class MVDepthOctomapMappingSystem:
                 self.__octree.write_binary(output_filename)
 
     # PRIVATE METHODS
-
-    def __run_detection(self) -> None:
-        """Run the detection thread."""
-        # Construct the instance segmenter and object detector.
-        instance_segmenter: InstanceSegmenter = InstanceSegmenter.make_mask_rcnn()
-        object_detector: ObjectDetector3D = ObjectDetector3D(instance_segmenter)
-
-        # Until termination is requested:
-        while not self.__should_terminate.is_set():
-            with self.__detection_lock:
-                # Wait for a detection request. If termination is requested whilst waiting, exit.
-                while not self.__detection_input_is_ready:
-                    self.__detection_input_ready.wait(0.1)
-                    if self.__should_terminate.is_set():
-                        return
-
-                start = timer()
-
-                # Find any 2D instances in the detection input image.
-                raw_instances: detectron2.structures.Instances = instance_segmenter.segment_raw(
-                    self.__detection_colour_image
-                )
-
-                end = timer()
-                print(f"  - Segmentation Time: {end - start}s")
-
-                # Draw the 2D instance segmentation so that it can be shown to the user.
-                instance_segmentation: np.ndarray = instance_segmenter.draw_raw_instances(
-                    raw_instances, self.__detection_colour_image
-                )
-
-                # Get the camera intrinsics.
-                with self.__parameters_lock:
-                    intrinsics: Tuple[float, float, float, float] = self.__intrinsics
-
-                start = timer()
-
-                # Lift relevant 2D instances to 3D objects.
-                # TODO: Ultimately, they should be fused in - this is a first pass.
-                instances: List[InstanceSegmenter.Instance] = instance_segmenter.parse_raw_instances(raw_instances)
-                instances = [instance for instance in instances if instance.label != "book"]
-                objects: List[ObjectDetector3D.Object3D] = object_detector.lift_to_3d(
-                    instances, self.__detection_depth_image, self.__detection_w_t_c, intrinsics
-                )
-
-                end = timer()
-                print(f"  - Lifting Time: {end - start}s")
-
-                with self.__scene_lock:
-                    # Share the instance segmentation and the detected 3D objects with other threads.
-                    self.__instance_segmentation = instance_segmentation.copy()
-                    self.__objects = objects
-
-                # Signal that the detector is now idle.
-                self.__detection_input_is_ready = False
 
     def __run_mapping(self) -> None:
         """Run the mapping thread."""
@@ -377,20 +322,75 @@ class MVDepthOctomapMappingSystem:
                     print(f"  - Fusion Time: {end - start}s")
 
                     # If no frame is currently being processed by the 3D object detector, schedule this one.
-                    acquired: bool = self.__detection_lock.acquire(blocking=False)
+                    acquired: bool = self.__object_detection_lock.acquire(blocking=False)
                     if acquired:
                         try:
-                            if not self.__detection_input_is_ready:
-                                self.__detection_colour_image = colour_image.copy()
-                                self.__detection_depth_image = estimated_depth_image.copy()
-                                self.__detection_w_t_c = mapping_w_t_c.copy()
-                                self.__detection_input_is_ready = True
-                                self.__detection_input_ready.notify()
+                            if not self.__object_detection_input_is_ready:
+                                self.__object_detection_colour_image = colour_image.copy()
+                                self.__object_detection_depth_image = estimated_depth_image.copy()
+                                self.__object_detection_w_t_c = mapping_w_t_c.copy()
+                                self.__object_detection_input_is_ready = True
+                                self.__object_detection_input_ready.notify()
                         finally:
-                            self.__detection_lock.release()
+                            self.__object_detection_lock.release()
             else:
                 # If no new frame is currently available, wait for 10ms to avoid a spin loop.
                 time.sleep(0.01)
+
+    def __run_object_detection(self) -> None:
+        """Run the object detection thread."""
+        # Construct the instance segmenter and object detector.
+        instance_segmenter: InstanceSegmenter = InstanceSegmenter.make_mask_rcnn()
+        object_detector: ObjectDetector3D = ObjectDetector3D(instance_segmenter)
+
+        # Until termination is requested:
+        while not self.__should_terminate.is_set():
+            with self.__object_detection_lock:
+                # Wait for a detection request. If termination is requested whilst waiting, exit.
+                while not self.__object_detection_input_is_ready:
+                    self.__object_detection_input_ready.wait(0.1)
+                    if self.__should_terminate.is_set():
+                        return
+
+                start = timer()
+
+                # Find any 2D instances in the detection input image.
+                raw_instances: detectron2.structures.Instances = instance_segmenter.segment_raw(
+                    self.__object_detection_colour_image
+                )
+
+                end = timer()
+                print(f"  - Segmentation Time: {end - start}s")
+
+                # Draw the 2D instance segmentation so that it can be shown to the user.
+                instance_segmentation: np.ndarray = instance_segmenter.draw_raw_instances(
+                    raw_instances, self.__object_detection_colour_image
+                )
+
+                # Get the camera intrinsics.
+                with self.__parameters_lock:
+                    intrinsics: Tuple[float, float, float, float] = self.__intrinsics
+
+                start = timer()
+
+                # Lift relevant 2D instances to 3D objects.
+                # TODO: Ultimately, they should be fused in - this is a first pass.
+                instances: List[InstanceSegmenter.Instance] = instance_segmenter.parse_raw_instances(raw_instances)
+                instances = [instance for instance in instances if instance.label != "book"]
+                objects: List[ObjectDetector3D.Object3D] = object_detector.lift_to_3d(
+                    instances, self.__object_detection_depth_image, self.__object_detection_w_t_c, intrinsics
+                )
+
+                end = timer()
+                print(f"  - Lifting Time: {end - start}s")
+
+                with self.__scene_lock:
+                    # Share the instance segmentation and the detected 3D objects with other threads.
+                    self.__instance_segmentation = instance_segmentation.copy()
+                    self.__objects = objects
+
+                # Signal that the detector is now idle.
+                self.__object_detection_input_is_ready = False
 
     def __run_skeleton_detection(self) -> None:
         """Run the (real-time) skeleton detection thread."""
