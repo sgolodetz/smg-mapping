@@ -34,7 +34,7 @@ class MVDepthOctomapMappingSystem:
     # CONSTRUCTOR
 
     def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
-                 camera_mode: str = "free", detect_objects: bool = False, detect_skeletons: bool = True,
+                 camera_mode: str = "free", detect_objects: bool = False, detect_skeletons: bool = False,
                  output_dir: Optional[str] = None, save_frames: bool = False, save_reconstruction: bool = False,
                  window_size: Tuple[int, int] = (640, 480)):
         """
@@ -87,6 +87,8 @@ class MVDepthOctomapMappingSystem:
 
         self.__mapping_thread: Optional[threading.Thread] = None
 
+        self.__skeleton_detection_thread: Optional[threading.Thread] = None
+
     # SPECIAL METHODS
 
     def __enter__(self):
@@ -130,6 +132,11 @@ class MVDepthOctomapMappingSystem:
         if self.__detect_objects:
             self.__detection_thread = threading.Thread(target=self.__run_detection)
             self.__detection_thread.start()
+
+        # If we're detecting 3D skeletons, start the skeleton detection thread.
+        if self.__detect_skeletons:
+            self.__skeleton_detection_thread = threading.Thread(target=self.__run_skeleton_detection)
+            self.__skeleton_detection_thread.start()
 
         # Until the mapping system should terminate:
         while not self.__should_terminate.is_set():
@@ -208,6 +215,8 @@ class MVDepthOctomapMappingSystem:
                 self.__detection_thread.join()
             if self.__mapping_thread is not None:
                 self.__mapping_thread.join()
+            if self.__skeleton_detection_thread is not None:
+                self.__skeleton_detection_thread.join()
 
             # If an output directory has been specified and we're saving the reconstruction, save it now.
             if self.__output_dir is not None and self.__save_reconstruction:
@@ -341,15 +350,11 @@ class MVDepthOctomapMappingSystem:
                     # Limit the depth range to 3m (more distant points can be unreliable).
                     estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
 
-                    # Get any skeletons that we were detecting.
+                    # Get the people mask associated with any skeletons that we were detecting.
                     if self.__detect_skeletons:
-                        skeletons, people_mask = skeleton_detector.end_detection()
+                        _, people_mask = skeleton_detector.end_detection()
                     else:
-                        skeletons, people_mask = (None, None)
-
-                    # Make any skeletons that were detected available to other threads.
-                    with self.__scene_lock:
-                        self.__skeletons = skeletons if skeletons is not None else []
+                        people_mask: Optional[np.ndarray] = None
 
                     # Remove any detected people from the depth image.
                     depopulated_depth_image: np.ndarray = estimated_depth_image.copy()
@@ -385,4 +390,27 @@ class MVDepthOctomapMappingSystem:
                             self.__detection_lock.release()
             else:
                 # If no new frame is currently available, wait for 10ms to avoid a spin loop.
+                time.sleep(0.01)
+
+    def __run_skeleton_detection(self) -> None:
+        """Run the (real-time) skeleton detection thread."""
+        receiver: RGBDFrameReceiver = RGBDFrameReceiver()
+        skeleton_detector: RemoteSkeletonDetector = RemoteSkeletonDetector(("127.0.0.1", 7853))
+
+        # Until termination is requested:
+        while not self.__should_terminate.is_set():
+            # If the server has any frames from the client that have not yet been processed, and it's thus
+            # possible to get the most recent one:
+            if self.__server.peek_newest_frame(self.__client_id, receiver):
+                # Detect any skeletons in the most recent frame:
+                colour_image: np.ndarray = receiver.get_rgb_image()
+                world_from_camera: np.ndarray = receiver.get_pose()
+                skeletons, _ = skeleton_detector.detect_skeletons(colour_image, world_from_camera)
+
+                # Make any skeletons that were detected available to other threads.
+                with self.__scene_lock:
+                    self.__skeletons = skeletons if skeletons is not None else []
+
+            # Otherwise, wait for 10ms to avoid a spin lock.
+            else:
                 time.sleep(0.01)
