@@ -16,6 +16,7 @@ from typing import List, Optional, Tuple
 
 from smg.comms.base import RGBDFrameReceiver
 from smg.comms.mapping import MappingServer
+from smg.comms.skeletons import RemoteSkeletonDetector
 from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
 from smg.mvdepthnet import MonocularDepthEstimator
 from smg.opengl import OpenGLMatrixContext, OpenGLUtil
@@ -23,6 +24,7 @@ from smg.pyoctomap import CM_COLOR_HEIGHT, OctomapUtil, OcTree, OcTreeDrawer, Po
 from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
 from smg.rigging.helpers import CameraPoseConverter
+from smg.skeletons import Skeleton, SkeletonRenderer, SkeletonUtil
 from smg.utility import GeometryUtil, RGBDSequenceUtil
 
 
@@ -31,9 +33,10 @@ class MVDepthOctomapMappingSystem:
 
     # CONSTRUCTOR
 
-    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *, camera_mode: str = "free",
-                 detect_objects: bool = False, output_dir: Optional[str] = None, save_frames: bool = False,
-                 save_reconstruction: bool = False, window_size: Tuple[int, int] = (640, 480)):
+    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
+                 camera_mode: str = "free", detect_objects: bool = False, detect_skeletons: bool = False,
+                 output_dir: Optional[str] = None, save_frames: bool = False, save_reconstruction: bool = False,
+                 window_size: Tuple[int, int] = (640, 480)):
         """
         Construct a mapping system that estimates depths using MVDepthNet and reconstructs an Octomap.
 
@@ -41,6 +44,7 @@ class MVDepthOctomapMappingSystem:
         :param depth_estimator:     The monocular depth estimator.
         :param camera_mode:         The camera mode to use (follow|free).
         :param detect_objects:      Whether to detect 3D objects.
+        :param detect_skeletons:    Whether to detect 3D skeletons.
         :param output_dir:          An optional directory into which to save output files.
         :param save_frames:         Whether to save the sequence of frames used to reconstruct the Octomap.
         :param save_reconstruction: Whether to save the reconstructed Octomap.
@@ -50,6 +54,7 @@ class MVDepthOctomapMappingSystem:
         self.__client_id: int = 0
         self.__depth_estimator: MonocularDepthEstimator = depth_estimator
         self.__detect_objects: bool = detect_objects
+        self.__detect_skeletons: bool = detect_skeletons
         self.__output_dir: Optional[str] = output_dir
         self.__save_frames: bool = save_frames
         self.__save_reconstruction: bool = save_reconstruction
@@ -62,24 +67,27 @@ class MVDepthOctomapMappingSystem:
         self.__intrinsics: Optional[Tuple[float, float, float, float]] = None
         self.__parameters_lock: threading.Lock = threading.Lock()
 
-        # The detection inputs, together with their lock.
-        self.__detection_colour_image: Optional[np.ndarray] = None
-        self.__detection_depth_image: Optional[np.ndarray] = None
-        self.__detection_w_t_c: Optional[np.ndarray] = None
-        self.__detection_lock: threading.Lock = threading.Lock()
+        # The object detection inputs, together with their lock.
+        self.__object_detection_colour_image: Optional[np.ndarray] = None
+        self.__object_detection_depth_image: Optional[np.ndarray] = None
+        self.__object_detection_w_t_c: Optional[np.ndarray] = None
+        self.__object_detection_lock: threading.Lock = threading.Lock()
 
         # The most recent instance segmentation, the detected 3D objects and the octree, together with their lock.
         self.__instance_segmentation: Optional[np.ndarray] = None
         self.__objects: List[ObjectDetector3D.Object3D] = []
         self.__octree: Optional[OcTree] = None
         self.__scene_lock: threading.Lock = threading.Lock()
+        self.__skeletons: List[Skeleton] = []
 
         # The threads and conditions.
-        self.__detection_thread: Optional[threading.Thread] = None
-        self.__detection_input_is_ready: bool = False
-        self.__detection_input_ready: threading.Condition = threading.Condition(self.__detection_lock)
-
         self.__mapping_thread: Optional[threading.Thread] = None
+
+        self.__object_detection_thread: Optional[threading.Thread] = None
+        self.__object_detection_input_is_ready: bool = False
+        self.__object_detection_input_ready: threading.Condition = threading.Condition(self.__object_detection_lock)
+
+        self.__skeleton_detection_thread: Optional[threading.Thread] = None
 
     # SPECIAL METHODS
 
@@ -120,10 +128,15 @@ class MVDepthOctomapMappingSystem:
         self.__mapping_thread = threading.Thread(target=self.__run_mapping)
         self.__mapping_thread.start()
 
-        # If we're detecting 3D objects, start the detection thread.
+        # If we're detecting 3D objects, start the object detection thread.
         if self.__detect_objects:
-            self.__detection_thread = threading.Thread(target=self.__run_detection)
-            self.__detection_thread.start()
+            self.__object_detection_thread = threading.Thread(target=self.__run_object_detection)
+            self.__object_detection_thread.start()
+
+        # If we're detecting 3D skeletons, start the skeleton detection thread.
+        if self.__detect_skeletons:
+            self.__skeleton_detection_thread = threading.Thread(target=self.__run_skeleton_detection)
+            self.__skeleton_detection_thread.start()
 
         # Until the mapping system should terminate:
         while not self.__should_terminate.is_set():
@@ -185,6 +198,10 @@ class MVDepthOctomapMappingSystem:
                             for obj in self.__objects:
                                 OpenGLUtil.render_aabb(*obj.box_3d)
 
+                            # Draw the 3D skeletons.
+                            for skeleton in self.__skeletons:
+                                SkeletonRenderer.render_skeleton(skeleton)
+
             # Swap the front and back buffers.
             pygame.display.flip()
 
@@ -194,10 +211,12 @@ class MVDepthOctomapMappingSystem:
             self.__should_terminate.set()
 
             # Join any running threads.
-            if self.__detection_thread is not None:
-                self.__detection_thread.join()
             if self.__mapping_thread is not None:
                 self.__mapping_thread.join()
+            if self.__object_detection_thread is not None:
+                self.__object_detection_thread.join()
+            if self.__skeleton_detection_thread is not None:
+                self.__skeleton_detection_thread.join()
 
             # If an output directory has been specified and we're saving the reconstruction, save it now.
             if self.__output_dir is not None and self.__save_reconstruction:
@@ -208,65 +227,12 @@ class MVDepthOctomapMappingSystem:
 
     # PRIVATE METHODS
 
-    def __run_detection(self) -> None:
-        """Run the detection thread."""
-        # Construct the instance segmenter and object detector.
-        instance_segmenter: InstanceSegmenter = InstanceSegmenter.make_mask_rcnn()
-        object_detector: ObjectDetector3D = ObjectDetector3D(instance_segmenter)
-
-        # Until termination is requested:
-        while not self.__should_terminate.is_set():
-            with self.__detection_lock:
-                # Wait for a detection request. If termination is requested whilst waiting, exit.
-                while not self.__detection_input_is_ready:
-                    self.__detection_input_ready.wait(0.1)
-                    if self.__should_terminate.is_set():
-                        return
-
-                start = timer()
-
-                # Find any 2D instances in the detection input image.
-                raw_instances: detectron2.structures.Instances = instance_segmenter.segment_raw(
-                    self.__detection_colour_image
-                )
-
-                end = timer()
-                print(f"  - Segmentation Time: {end - start}s")
-
-                # Draw the 2D instance segmentation so that it can be shown to the user.
-                instance_segmentation: np.ndarray = instance_segmenter.draw_raw_instances(
-                    raw_instances, self.__detection_colour_image
-                )
-
-                # Get the camera intrinsics.
-                with self.__parameters_lock:
-                    intrinsics: Tuple[float, float, float, float] = self.__intrinsics
-
-                start = timer()
-
-                # Lift relevant 2D instances to 3D objects.
-                # TODO: Ultimately, they should be fused in - this is a first pass.
-                instances: List[InstanceSegmenter.Instance] = instance_segmenter.parse_raw_instances(raw_instances)
-                instances = [instance for instance in instances if instance.label != "book"]
-                objects: List[ObjectDetector3D.Object3D] = object_detector.lift_to_3d(
-                    instances, self.__detection_depth_image, self.__detection_w_t_c, intrinsics
-                )
-
-                end = timer()
-                print(f"  - Lifting Time: {end - start}s")
-
-                with self.__scene_lock:
-                    # Share the instance segmentation and the detected 3D objects with other threads.
-                    self.__instance_segmentation = instance_segmentation.copy()
-                    self.__objects = objects
-
-                # Signal that the detector is now idle.
-                self.__detection_input_is_ready = False
-
     def __run_mapping(self) -> None:
         """Run the mapping thread."""
         frame_idx: int = 0
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
+        skeleton_detector: Optional[RemoteSkeletonDetector] = RemoteSkeletonDetector() \
+            if self.__detect_skeletons else None
 
         # Construct the octree.
         voxel_size: float = 0.05
@@ -303,6 +269,17 @@ class MVDepthOctomapMappingSystem:
                     )
                     frame_idx += 1
 
+                # If we're detecting skeletons:
+                if self.__detect_skeletons:
+                    # Set the camera calibration for the skeleton detector.
+                    # FIXME: Do this once.
+                    skeleton_detector.set_calibration((width, height), intrinsics)
+
+                    # Start trying to detect any skeletons in the colour image. If this fails, skip this frame.
+                    if not skeleton_detector.begin_detection(colour_image, mapping_w_t_c):
+                        time.sleep(0.01)
+                        continue
+
                 # Try to estimate a depth image for the frame.
                 start = timer()
 
@@ -315,11 +292,24 @@ class MVDepthOctomapMappingSystem:
 
                 # If a depth image was successfully estimated:
                 if estimated_depth_image is not None:
-                    # Limit its range to 3m (more distant points can be unreliable).
+                    # Limit the depth range to 3m (more distant points can be unreliable).
                     estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
 
+                    # Get the people mask associated with any skeletons that we were detecting.
+                    if self.__detect_skeletons:
+                        _, people_mask = skeleton_detector.end_detection()
+                    else:
+                        people_mask: Optional[np.ndarray] = None
+
+                    # Remove any detected people from the depth image.
+                    depopulated_depth_image: np.ndarray = estimated_depth_image.copy()
+                    if people_mask is not None:
+                        depopulated_depth_image = SkeletonUtil.depopulate_depth_image(
+                            depopulated_depth_image, people_mask
+                        )
+
                     # Use the depth image and pose to make an Octomap point cloud.
-                    pcd: Pointcloud = OctomapUtil.make_point_cloud(estimated_depth_image, mapping_w_t_c, intrinsics)
+                    pcd: Pointcloud = OctomapUtil.make_point_cloud(depopulated_depth_image, mapping_w_t_c, intrinsics)
 
                     # Fuse the point cloud into the octree.
                     start = timer()
@@ -332,17 +322,95 @@ class MVDepthOctomapMappingSystem:
                     print(f"  - Fusion Time: {end - start}s")
 
                     # If no frame is currently being processed by the 3D object detector, schedule this one.
-                    acquired: bool = self.__detection_lock.acquire(blocking=False)
+                    acquired: bool = self.__object_detection_lock.acquire(blocking=False)
                     if acquired:
                         try:
-                            if not self.__detection_input_is_ready:
-                                self.__detection_colour_image = colour_image.copy()
-                                self.__detection_depth_image = estimated_depth_image.copy()
-                                self.__detection_w_t_c = mapping_w_t_c.copy()
-                                self.__detection_input_is_ready = True
-                                self.__detection_input_ready.notify()
+                            if not self.__object_detection_input_is_ready:
+                                self.__object_detection_colour_image = colour_image.copy()
+                                self.__object_detection_depth_image = estimated_depth_image.copy()
+                                self.__object_detection_w_t_c = mapping_w_t_c.copy()
+                                self.__object_detection_input_is_ready = True
+                                self.__object_detection_input_ready.notify()
                         finally:
-                            self.__detection_lock.release()
+                            self.__object_detection_lock.release()
             else:
                 # If no new frame is currently available, wait for 10ms to avoid a spin loop.
+                time.sleep(0.01)
+
+    def __run_object_detection(self) -> None:
+        """Run the object detection thread."""
+        # Construct the instance segmenter and object detector.
+        instance_segmenter: InstanceSegmenter = InstanceSegmenter.make_mask_rcnn()
+        object_detector: ObjectDetector3D = ObjectDetector3D(instance_segmenter)
+
+        # Until termination is requested:
+        while not self.__should_terminate.is_set():
+            with self.__object_detection_lock:
+                # Wait for a detection request. If termination is requested whilst waiting, exit.
+                while not self.__object_detection_input_is_ready:
+                    self.__object_detection_input_ready.wait(0.1)
+                    if self.__should_terminate.is_set():
+                        return
+
+                start = timer()
+
+                # Find any 2D instances in the detection input image.
+                raw_instances: detectron2.structures.Instances = instance_segmenter.segment_raw(
+                    self.__object_detection_colour_image
+                )
+
+                end = timer()
+                print(f"  - Segmentation Time: {end - start}s")
+
+                # Draw the 2D instance segmentation so that it can be shown to the user.
+                instance_segmentation: np.ndarray = instance_segmenter.draw_raw_instances(
+                    raw_instances, self.__object_detection_colour_image
+                )
+
+                # Get the camera intrinsics.
+                with self.__parameters_lock:
+                    intrinsics: Tuple[float, float, float, float] = self.__intrinsics
+
+                start = timer()
+
+                # Lift relevant 2D instances to 3D objects.
+                # TODO: Ultimately, they should be fused in - this is a first pass.
+                instances: List[InstanceSegmenter.Instance] = instance_segmenter.parse_raw_instances(raw_instances)
+                instances = [instance for instance in instances if instance.label != "book"]
+                objects: List[ObjectDetector3D.Object3D] = object_detector.lift_to_3d(
+                    instances, self.__object_detection_depth_image, self.__object_detection_w_t_c, intrinsics
+                )
+
+                end = timer()
+                print(f"  - Lifting Time: {end - start}s")
+
+                with self.__scene_lock:
+                    # Share the instance segmentation and the detected 3D objects with other threads.
+                    self.__instance_segmentation = instance_segmentation.copy()
+                    self.__objects = objects
+
+                # Signal that the detector is now idle.
+                self.__object_detection_input_is_ready = False
+
+    def __run_skeleton_detection(self) -> None:
+        """Run the (real-time) skeleton detection thread."""
+        receiver: RGBDFrameReceiver = RGBDFrameReceiver()
+        skeleton_detector: RemoteSkeletonDetector = RemoteSkeletonDetector(("127.0.0.1", 7853))
+
+        # Until termination is requested:
+        while not self.__should_terminate.is_set():
+            # If the server has any frames from the client that have not yet been processed, and it's thus
+            # possible to get the most recent one:
+            if self.__server.peek_newest_frame(self.__client_id, receiver):
+                # Detect any skeletons in the most recent frame:
+                colour_image: np.ndarray = receiver.get_rgb_image()
+                world_from_camera: np.ndarray = receiver.get_pose()
+                skeletons, _ = skeleton_detector.detect_skeletons(colour_image, world_from_camera)
+
+                # Make any skeletons that were detected available to other threads.
+                with self.__scene_lock:
+                    self.__skeletons = skeletons if skeletons is not None else []
+
+            # Otherwise, wait for 10ms to avoid a spin lock.
+            else:
                 time.sleep(0.01)
