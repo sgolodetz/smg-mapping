@@ -19,7 +19,8 @@ setup(
         "smg-mvdepthnet",
         "smg-open3d",
         "smg-pyoctomap",
-        "smg-pyremode"
+        "smg-pyremode",
+        "smg-skeletons"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
