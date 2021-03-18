@@ -22,16 +22,17 @@ class MVDepthOpen3DMappingSystem:
 
     # CONSTRUCTOR
 
-    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
-                 detect_objects: bool = False, output_dir: Optional[str] = None, save_frames: bool = False):
+    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *, detect_objects: bool = False,
+                 output_dir: Optional[str] = None, save_frames: bool = False, use_received_depth: bool = False):
         """
         Construct a mapping system that estimates depths using MVDepthNet and reconstructs an Open3D TSDF.
 
-        :param server:          The mapping server.
-        :param depth_estimator: The monocular depth estimator.
-        :param detect_objects:  Whether to detect 3D objects.
-        :param output_dir:      An optional directory into which to save output files.
-        :param save_frames:     Whether to save the sequence of frames used to reconstruct the TSDF.
+        :param server:              The mapping server.
+        :param depth_estimator:     The monocular depth estimator.
+        :param detect_objects:      Whether to detect 3D objects.
+        :param output_dir:          An optional directory into which to save output files.
+        :param save_frames:         Whether to save the sequence of frames used to reconstruct the TSDF.
+        :param use_received_depth:  Whether to use depth images received from the client instead of estimating depth.
         """
         self.__client_id: int = 0
         self.__depth_estimator: MonocularDepthEstimator = depth_estimator
@@ -40,6 +41,7 @@ class MVDepthOpen3DMappingSystem:
         self.__save_frames: bool = save_frames
         self.__server: MappingServer = server
         self.__should_terminate: threading.Event = threading.Event()
+        self.__use_received_depth: bool = use_received_depth
 
         # The image size and camera intrinsics, together with their lock.
         self.__image_size: Optional[Tuple[int, int]] = None
@@ -224,9 +226,13 @@ class MVDepthOpen3DMappingSystem:
                 # Try to estimate a depth image for the frame.
                 start = timer()
 
-                estimated_depth_image: Optional[np.ndarray] = self.__depth_estimator.estimate_depth(
-                    colour_image, mapping_w_t_c
-                )
+                # noinspection PyUnusedLocal
+                estimated_depth_image: Optional[np.ndarray] = None
+
+                if self.__use_received_depth:
+                    estimated_depth_image = receiver.get_depth_image()
+                else:
+                    estimated_depth_image = self.__depth_estimator.estimate_depth(colour_image, mapping_w_t_c)
 
                 end = timer()
                 print(f"  - Depth Estimation Time: {end - start}s")

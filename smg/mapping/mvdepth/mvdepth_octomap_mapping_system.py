@@ -36,7 +36,7 @@ class MVDepthOctomapMappingSystem:
     def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
                  camera_mode: str = "free", detect_objects: bool = False, detect_skeletons: bool = False,
                  output_dir: Optional[str] = None, save_frames: bool = False, save_reconstruction: bool = False,
-                 window_size: Tuple[int, int] = (640, 480)):
+                 use_received_depth: bool = False, window_size: Tuple[int, int] = (640, 480)):
         """
         Construct a mapping system that estimates depths using MVDepthNet and reconstructs an Octomap.
 
@@ -48,6 +48,7 @@ class MVDepthOctomapMappingSystem:
         :param output_dir:          An optional directory into which to save output files.
         :param save_frames:         Whether to save the sequence of frames used to reconstruct the Octomap.
         :param save_reconstruction: Whether to save the reconstructed Octomap.
+        :param use_received_depth:  Whether to use depth images received from the client instead of estimating depth.
         :param window_size:         The size of window to use.
         """
         self.__camera_mode: str = camera_mode
@@ -60,6 +61,7 @@ class MVDepthOctomapMappingSystem:
         self.__save_reconstruction: bool = save_reconstruction
         self.__server: MappingServer = server
         self.__should_terminate: threading.Event = threading.Event()
+        self.__use_received_depth: bool = use_received_depth
         self.__window_size: Tuple[int, int] = window_size
 
         # The image size and camera intrinsics, together with their lock.
@@ -283,9 +285,13 @@ class MVDepthOctomapMappingSystem:
                 # Try to estimate a depth image for the frame.
                 start = timer()
 
-                estimated_depth_image: Optional[np.ndarray] = self.__depth_estimator.estimate_depth(
-                    colour_image, mapping_w_t_c
-                )
+                # noinspection PyUnusedLocal
+                estimated_depth_image: Optional[np.ndarray] = None
+
+                if self.__use_received_depth:
+                    estimated_depth_image = receiver.get_depth_image()
+                else:
+                    estimated_depth_image = self.__depth_estimator.estimate_depth(colour_image, mapping_w_t_c)
 
                 end = timer()
                 print(f"  - Depth Estimation Time: {end - start}s")
