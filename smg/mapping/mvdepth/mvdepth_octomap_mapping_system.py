@@ -20,12 +20,14 @@ from smg.comms.skeletons import RemoteSkeletonDetector
 from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
 from smg.mvdepthnet import MonocularDepthEstimator
 from smg.opengl import OpenGLMatrixContext, OpenGLUtil
-from smg.pyoctomap import CM_COLOR_HEIGHT, OctomapUtil, OcTree, OcTreeDrawer, Pointcloud, Vector3
+from smg.pyoctomap import CM_COLOR_HEIGHT, OctomapPicker, OctomapUtil, OcTree, OcTreeDrawer, Pointcloud, Vector3
 from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
 from smg.rigging.helpers import CameraPoseConverter
 from smg.skeletons import Skeleton, SkeletonRenderer, SkeletonUtil
 from smg.utility import GeometryUtil, RGBDSequenceUtil
+
+from ..selectors.bone_selector import BoneSelector
 
 
 class MVDepthOctomapMappingSystem:
@@ -33,9 +35,9 @@ class MVDepthOctomapMappingSystem:
 
     # CONSTRUCTOR
 
-    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
-                 camera_mode: str = "free", detect_objects: bool = False, detect_skeletons: bool = False,
-                 output_dir: Optional[str] = None, save_frames: bool = False, save_reconstruction: bool = False,
+    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *, camera_mode: str = "free",
+                 detect_objects: bool = False, detect_skeletons: bool = False, output_dir: Optional[str] = None,
+                 save_frames: bool = False, save_reconstruction: bool = False, use_arm_selection: bool = False,
                  use_received_depth: bool = False, window_size: Tuple[int, int] = (640, 480)):
         """
         Construct a mapping system that estimates depths using MVDepthNet and reconstructs an Octomap.
@@ -48,6 +50,7 @@ class MVDepthOctomapMappingSystem:
         :param output_dir:          An optional directory into which to save output files.
         :param save_frames:         Whether to save the sequence of frames used to reconstruct the Octomap.
         :param save_reconstruction: Whether to save the reconstructed Octomap.
+        :param use_arm_selection:   Whether to allow the user to select 3D points in the scene using their arm.
         :param use_received_depth:  Whether to use depth images received from the client instead of estimating depth.
         :param window_size:         The size of window to use.
         """
@@ -61,6 +64,7 @@ class MVDepthOctomapMappingSystem:
         self.__save_reconstruction: bool = save_reconstruction
         self.__server: MappingServer = server
         self.__should_terminate: threading.Event = threading.Event()
+        self.__use_arm_selection: bool = use_arm_selection
         self.__use_received_depth: bool = use_received_depth
         self.__window_size: Tuple[int, int] = window_size
 
@@ -105,6 +109,7 @@ class MVDepthOctomapMappingSystem:
 
     def run(self) -> None:
         """Run the mapping system."""
+        picker: Optional[OctomapPicker] = None
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
         viewing_pose: np.ndarray = np.eye(4)
 
@@ -178,6 +183,26 @@ class MVDepthOctomapMappingSystem:
                 else:
                     viewing_pose = camera_controller.get_pose()
 
+                # Try to let the user select a 3D point in the scene with their arm (if this is enabled).
+                selected_point: Optional[np.ndarray] = None
+
+                if self.__use_arm_selection:
+                    # Try to construct the picker, if it hasn't been constructed already.
+                    if picker is None:
+                        with self.__scene_lock:
+                            if self.__octree is not None:
+                                # noinspection PyTypeChecker
+                                picker = OctomapPicker(self.__octree, *image_size, intrinsics)
+
+                    # If the picker has now been constructed:
+                    if picker is not None:
+                        with self.__scene_lock:
+                            # If a single skeleton has currently been detected:
+                            if len(self.__skeletons) == 1:
+                                # Construct the selector and try to select a 3D scene point.
+                                selector: BoneSelector = BoneSelector(self.__skeletons[0], "LElbow", "LWrist", picker)
+                                selected_point = selector.get_selected_point()
+
                 # Set the projection matrix.
                 with OpenGLMatrixContext(GL_PROJECTION, lambda: OpenGLUtil.set_projection_matrix(
                     GeometryUtil.rescale_intrinsics(intrinsics, image_size, self.__window_size), *self.__window_size
@@ -203,6 +228,13 @@ class MVDepthOctomapMappingSystem:
                             # Draw the 3D skeletons.
                             for skeleton in self.__skeletons:
                                 SkeletonRenderer.render_skeleton(skeleton)
+
+                            # Draw any 3D scene point that the user selected.
+                            if selected_point is not None:
+                                glColor3f(1, 0, 1)
+                                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+                                OpenGLUtil.render_sphere(selected_point, 0.1, slices=10, stacks=10)
+                                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
 
             # Swap the front and back buffers.
             pygame.display.flip()
