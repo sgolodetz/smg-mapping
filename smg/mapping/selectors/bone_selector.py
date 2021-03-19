@@ -14,8 +14,7 @@ class BoneSelector:
 
     # CONSTRUCTOR
 
-    def __init__(self, skeleton: Skeleton, source_keypoint_name: str, target_keypoint_name: str,
-                 picker: OctomapPicker, *, debug: bool = False):
+    def __init__(self, skeleton: Skeleton, source_keypoint_name: str, target_keypoint_name: str):
         """
         Construct a bone selector.
 
@@ -26,21 +25,20 @@ class BoneSelector:
         :param skeleton:                The skeleton.
         :param source_keypoint_name:    The name of the keypoint at the "source" end of the bone.
         :param target_keypoint_name:    The name of the keypoint at the "target" end of the bone.
-        :param picker:                  The "picker", used to render a world-space points image of the scene
-                                        from the perspective of a camera looking along the bone.
-        :param debug:                   Whether to showing the picking image for debugging purposes.
         """
-        self.__debug: bool = debug
-        self.__picker: OctomapPicker = picker
         self.__skeleton: Skeleton = skeleton
         self.__source_keypoint_name: str = source_keypoint_name
         self.__target_keypoint_name: str = target_keypoint_name
 
     # PUBLIC METHODS
 
-    def get_selected_point(self) -> Optional[np.ndarray]:
+    def get_selected_point(self, picker: OctomapPicker, *, debug: bool = False) -> Optional[np.ndarray]:
         """
         Get the currently selected 3D point (if any).
+
+        :param picker:  The "picker", used to render a world-space points image of the scene from the perspective
+                        of a camera looking along the bone.
+        :param debug:   Whether to showing the picking image for debugging purposes.
 
         :return:    The currently selected 3D point (if any).
         """
@@ -58,10 +56,10 @@ class BoneSelector:
         picking_pose: np.ndarray = np.linalg.inv(CameraPoseConverter.camera_to_pose(picking_cam))
 
         # Use the picker to render a world-space points image from the perspective of this camera.
-        picking_image, picking_mask = self.__picker.pick(picking_pose)
+        picking_image, picking_mask = picker.pick(picking_pose)
 
         # If we're debugging, show the picking image.
-        if self.__debug:
+        if debug:
             cv2.imshow("Picking Image", picking_image)
             cv2.waitKey(1)
 

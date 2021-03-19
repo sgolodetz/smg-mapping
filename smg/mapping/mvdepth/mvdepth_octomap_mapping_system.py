@@ -200,8 +200,8 @@ class MVDepthOctomapMappingSystem:
                             # If a single skeleton has currently been detected:
                             if len(self.__skeletons) == 1:
                                 # Construct the selector and try to select a 3D scene point.
-                                selector: BoneSelector = BoneSelector(self.__skeletons[0], "LElbow", "LWrist", picker)
-                                selected_point = selector.get_selected_point()
+                                selector: BoneSelector = BoneSelector(self.__skeletons[0], "LElbow", "LWrist")
+                                selected_point = selector.get_selected_point(picker)
 
                 # Set the projection matrix.
                 with OpenGLMatrixContext(GL_PROJECTION, lambda: OpenGLUtil.set_projection_matrix(
