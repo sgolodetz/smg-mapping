@@ -16,6 +16,7 @@ setup(
     include_package_data=True,
     install_requires=[
         "smg-detectron2",
+        "smg-joysticks",
         "smg-mvdepthnet",
         "smg-open3d",
         "smg-pyoctomap",
