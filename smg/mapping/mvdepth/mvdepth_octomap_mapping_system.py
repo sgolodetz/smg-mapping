@@ -333,31 +333,34 @@ class MVDepthOctomapMappingSystem:
                     # Limit the depth range to 3m (more distant points can be unreliable).
                     estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
 
-                    # Get the people mask associated with any skeletons that we were detecting.
-                    if self.__detect_skeletons:
-                        _, people_mask = skeleton_detector.end_detection()
-                    else:
-                        people_mask: Optional[np.ndarray] = None
+                    if np.count_nonzero(estimated_depth_image) / np.product(estimated_depth_image.shape) >= 0.5:
+                        estimated_depth_image = cv2.medianBlur(estimated_depth_image, 7)
 
-                    # Remove any detected people from the depth image.
-                    depopulated_depth_image: np.ndarray = estimated_depth_image.copy()
-                    if people_mask is not None:
-                        depopulated_depth_image = SkeletonUtil.depopulate_depth_image(
-                            depopulated_depth_image, people_mask
-                        )
+                        # Get the people mask associated with any skeletons that we were detecting.
+                        if self.__detect_skeletons:
+                            _, people_mask = skeleton_detector.end_detection()
+                        else:
+                            people_mask: Optional[np.ndarray] = None
 
-                    # Use the depth image and pose to make an Octomap point cloud.
-                    pcd: Pointcloud = OctomapUtil.make_point_cloud(depopulated_depth_image, mapping_w_t_c, intrinsics)
+                        # Remove any detected people from the depth image.
+                        depopulated_depth_image: np.ndarray = estimated_depth_image.copy()
+                        if people_mask is not None:
+                            depopulated_depth_image = SkeletonUtil.depopulate_depth_image(
+                                depopulated_depth_image, people_mask
+                            )
 
-                    # Fuse the point cloud into the octree.
-                    start = timer()
+                        # Use the depth image and pose to make an Octomap point cloud.
+                        pcd: Pointcloud = OctomapUtil.make_point_cloud(depopulated_depth_image, mapping_w_t_c, intrinsics)
 
-                    with self.__scene_lock:
-                        origin: Vector3 = Vector3(0.0, 0.0, 0.0)
-                        self.__octree.insert_point_cloud(pcd, origin, discretize=True)
+                        # Fuse the point cloud into the octree.
+                        start = timer()
 
-                    end = timer()
-                    print(f"  - Fusion Time: {end - start}s")
+                        with self.__scene_lock:
+                            origin: Vector3 = Vector3(0.0, 0.0, 0.0)
+                            self.__octree.insert_point_cloud(pcd, origin, discretize=True)
+
+                        end = timer()
+                        print(f"  - Fusion Time: {end - start}s")
 
                     # If no frame is currently being processed by the 3D object detector, schedule this one.
                     acquired: bool = self.__object_detection_lock.acquire(blocking=False)
