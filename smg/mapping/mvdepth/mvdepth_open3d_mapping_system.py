@@ -242,21 +242,8 @@ class MVDepthOpen3DMappingSystem:
                     # Limit its range to 3m (more distant points can be unreliable).
                     estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
 
-                    # cs_points: np.ndarray = GeometryUtil.compute_world_points_image_fast(estimated_depth_image, np.eye(4), intrinsics)
-                    # normal_image: np.ndarray = np.zeros_like(cs_points)
-                    # mask: np.ndarray = np.where(estimated_depth_image != 0.0, 255, 0).astype(np.uint8)
-                    # GeometryUtil.compute_normal_image(cs_points, mask, normal_image, radius=1)
-                    # normals_bgr: np.ndarray = np.zeros(normal_image.shape, dtype=np.uint8)
-                    # GeometryUtil.colourise_normal_image(normal_image, normals_bgr)
-                    # cv2.imshow("Normals", normals_bgr)
-                    #
-                    # # estimated_depth_image = np.where(normal_image[:, :, 2] < -0.8, estimated_depth_image, 0.0)
-                    # estimated_depth_image = cv2.medianBlur(estimated_depth_image, 5)
-                    # cv2.imshow("Filtered Depth Image", estimated_depth_image)
-                    # cv2.waitKey(1)
-
                     if np.count_nonzero(estimated_depth_image) / np.product(estimated_depth_image.shape) >= 0.5:
-                        estimated_depth_image = cv2.medianBlur(estimated_depth_image, 5)
+                        estimated_depth_image = cv2.medianBlur(estimated_depth_image, 7)
 
                         # Fuse the frame into the TSDF.
                         start = timer()
