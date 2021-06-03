@@ -242,7 +242,9 @@ class MVDepthOpen3DMappingSystem:
                     # Limit its range to 3m (more distant points can be unreliable).
                     estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
 
+                    # Then, provided we have depth values for more than 50% of the remaining pixels in the frame:
                     if np.count_nonzero(estimated_depth_image) / np.product(estimated_depth_image.shape) >= 0.5:
+                        # Median filter the depth image to help mitigate impulsive noise.
                         estimated_depth_image = cv2.medianBlur(estimated_depth_image, 7)
 
                         # Fuse the frame into the TSDF.
@@ -257,8 +259,8 @@ class MVDepthOpen3DMappingSystem:
                             o3d_intrinsics, self.__tsdf
                         )
 
-                    end = timer()
-                    print(f"  - Fusion Time: {end - start}s")
+                        end = timer()
+                        print(f"  - Fusion Time: {end - start}s")
 
                     # If no frame is currently being processed by the 3D object detector, schedule this one.
                     acquired: bool = self.__detection_lock.acquire(blocking=False)
