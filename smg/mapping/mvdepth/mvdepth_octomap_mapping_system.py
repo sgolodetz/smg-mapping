@@ -226,8 +226,9 @@ class MVDepthOctomapMappingSystem:
                                 OpenGLUtil.render_aabb(*obj.box_3d)
 
                             # Draw the 3D skeletons.
-                            for skeleton in self.__skeletons:
-                                SkeletonRenderer.render_skeleton(skeleton)
+                            with SkeletonRenderer.default_lighting_context():
+                                for skeleton in self.__skeletons:
+                                    SkeletonRenderer.render_skeleton(skeleton)
 
                             # Draw any 3D scene point that the user selected.
                             if selected_point is not None:
