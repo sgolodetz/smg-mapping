@@ -25,6 +25,7 @@ from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
 from smg.rigging.helpers import CameraPoseConverter
 from smg.skeletons import Skeleton, SkeletonRenderer, SkeletonUtil
+from smg.smplx import SMPLBody
 from smg.utility import GeometryUtil, RGBDSequenceUtil
 
 from ..selectors.bone_selector import BoneSelector
@@ -145,6 +146,9 @@ class MVDepthOctomapMappingSystem:
             self.__skeleton_detection_thread = threading.Thread(target=self.__run_skeleton_detection)
             self.__skeleton_detection_thread.start()
 
+        # Construct the SMPL body.
+        smpl_body: SMPLBody = SMPLBody("male")
+
         # Until the mapping system should terminate:
         while not self.__should_terminate.is_set():
             # Process any PyGame events.
@@ -229,6 +233,7 @@ class MVDepthOctomapMappingSystem:
                             with SkeletonRenderer.default_lighting_context():
                                 for skeleton in self.__skeletons:
                                     SkeletonRenderer.render_skeleton(skeleton)
+                                    smpl_body.render_from_skeleton(skeleton)
 
                             # Draw any 3D scene point that the user selected.
                             if selected_point is not None:
