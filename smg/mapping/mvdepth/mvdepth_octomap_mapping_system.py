@@ -24,7 +24,7 @@ from smg.pyoctomap import CM_COLOR_HEIGHT, OctomapPicker, OctomapUtil, OcTree, O
 from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
 from smg.rigging.helpers import CameraPoseConverter
-from smg.skeletons import Skeleton, SkeletonRenderer, SkeletonUtil
+from smg.skeletons import Skeleton3D, SkeletonRenderer, SkeletonUtil
 from smg.smplx import SMPLBody
 from smg.utility import GeometryUtil, RGBDSequenceUtil
 
@@ -85,7 +85,7 @@ class MVDepthOctomapMappingSystem:
         self.__objects: List[ObjectDetector3D.Object3D] = []
         self.__octree: Optional[OcTree] = None
         self.__scene_lock: threading.Lock = threading.Lock()
-        self.__skeletons: List[Skeleton] = []
+        self.__skeletons: List[Skeleton3D] = []
 
         # The threads and conditions.
         self.__mapping_thread: Optional[threading.Thread] = None
