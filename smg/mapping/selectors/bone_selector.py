@@ -6,7 +6,7 @@ from typing import Optional
 from smg.pyoctomap import OctomapPicker
 from smg.rigging.cameras import SimpleCamera
 from smg.rigging.helpers import CameraPoseConverter
-from smg.skeletons import Skeleton3D
+from smg.skeletons import Keypoint, Skeleton3D
 
 
 class BoneSelector:
@@ -43,8 +43,8 @@ class BoneSelector:
         :return:    The currently selected 3D point (if any).
         """
         # Look up the bone's keypoints in the skeleton. If they're not present, early out.
-        source_keypoint: Optional[Skeleton3D.Keypoint] = self.__skeleton.keypoints.get(self.__source_keypoint_name)
-        target_keypoint: Optional[Skeleton3D.Keypoint] = self.__skeleton.keypoints.get(self.__target_keypoint_name)
+        source_keypoint: Optional[Keypoint] = self.__skeleton.keypoints.get(self.__source_keypoint_name)
+        target_keypoint: Optional[Keypoint] = self.__skeleton.keypoints.get(self.__target_keypoint_name)
         if source_keypoint is None or target_keypoint is None:
             return None
 
