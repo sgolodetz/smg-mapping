@@ -24,7 +24,7 @@ from smg.pyoctomap import CM_COLOR_HEIGHT, OctomapPicker, OctomapUtil, OcTree, O
 from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
 from smg.rigging.helpers import CameraPoseConverter
-from smg.skeletons import Skeleton, SkeletonRenderer, SkeletonUtil
+from smg.skeletons import Skeleton3D, SkeletonRenderer, SkeletonUtil
 from smg.utility import GeometryUtil, RGBDSequenceUtil
 
 from ..selectors.bone_selector import BoneSelector
@@ -84,7 +84,7 @@ class MVDepthOctomapMappingSystem:
         self.__objects: List[ObjectDetector3D.Object3D] = []
         self.__octree: Optional[OcTree] = None
         self.__scene_lock: threading.Lock = threading.Lock()
-        self.__skeletons: List[Skeleton] = []
+        self.__skeletons: List[Skeleton3D] = []
 
         # The threads and conditions.
         self.__mapping_thread: Optional[threading.Thread] = None
@@ -226,8 +226,9 @@ class MVDepthOctomapMappingSystem:
                                 OpenGLUtil.render_aabb(*obj.box_3d)
 
                             # Draw the 3D skeletons.
-                            for skeleton in self.__skeletons:
-                                SkeletonRenderer.render_skeleton(skeleton)
+                            with SkeletonRenderer.default_lighting_context():
+                                for skeleton in self.__skeletons:
+                                    SkeletonRenderer.render_skeleton(skeleton)
 
                             # Draw any 3D scene point that the user selected.
                             if selected_point is not None:
