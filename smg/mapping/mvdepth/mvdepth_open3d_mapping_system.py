@@ -242,6 +242,14 @@ class MVDepthOpen3DMappingSystem:
                     # Limit its range to 3m (more distant points can be unreliable).
                     estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
 
+                    from smg.utility.depth_image_processor import DepthImageProcessor
+                    segmentation, stats, _ = DepthImageProcessor.segment_depth_image(
+                        estimated_depth_image, threshold=0.02
+                    )
+                    estimated_depth_image, _ = DepthImageProcessor.remove_isolated_regions(
+                        estimated_depth_image, segmentation, stats, min_region_size=500
+                    )
+
                     # Then, provided we have depth values for more than 50% of the remaining pixels in the frame:
                     if np.count_nonzero(estimated_depth_image) / np.product(estimated_depth_image.shape) >= 0.5:
                         # Median filter the depth image to help mitigate impulsive noise.
