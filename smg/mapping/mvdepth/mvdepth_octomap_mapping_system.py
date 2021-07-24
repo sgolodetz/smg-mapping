@@ -368,8 +368,8 @@ class MVDepthOctomapMappingSystem:
                         start = timer()
 
                         with self.__scene_lock:
-                            origin: Vector3 = Vector3(0.0, 0.0, 0.0)
-                            self.__octree.insert_point_cloud(pcd, origin, discretize=True)
+                            sensor_origin: Vector3 = Vector3(*mapping_w_t_c[0:3, 3])
+                            self.__octree.insert_point_cloud(pcd, sensor_origin, discretize=True)
 
                         end = timer()
                         print(f"  - Fusion Time: {end - start}s")
