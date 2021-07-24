@@ -25,7 +25,7 @@ from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
 from smg.rigging.helpers import CameraPoseConverter
 from smg.skeletons import Skeleton3D, SkeletonRenderer, SkeletonUtil
-from smg.utility import GeometryUtil, RGBDSequenceUtil
+from smg.utility import DepthImageProcessor, GeometryUtil, RGBDSequenceUtil
 
 from ..selectors.bone_selector import BoneSelector
 
@@ -336,9 +336,8 @@ class MVDepthOctomapMappingSystem:
 
                     # Then, provided we have depth values for more than 20% of the remaining pixels in the frame:
                     if np.count_nonzero(estimated_depth_image) / np.product(estimated_depth_image.shape) >= 0.2:
-                        from smg.utility.depth_image_processor import DepthImageProcessor
                         segmentation, stats, _ = DepthImageProcessor.segment_depth_image(
-                            estimated_depth_image, threshold=0.02
+                            estimated_depth_image, threshold=0.05
                         )
                         estimated_depth_image, _ = DepthImageProcessor.remove_isolated_regions(
                             estimated_depth_image, segmentation, stats, min_region_size=20000
@@ -361,7 +360,9 @@ class MVDepthOctomapMappingSystem:
                             )
 
                         # Use the depth image and pose to make an Octomap point cloud.
-                        pcd: Pointcloud = OctomapUtil.make_point_cloud(depopulated_depth_image, mapping_w_t_c, intrinsics)
+                        pcd: Pointcloud = OctomapUtil.make_point_cloud(
+                            depopulated_depth_image, mapping_w_t_c, intrinsics
+                        )
 
                         # Fuse the point cloud into the octree.
                         start = timer()

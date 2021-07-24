@@ -14,7 +14,7 @@ from smg.comms.mapping import MappingServer
 from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
 from smg.mvdepthnet import MonocularDepthEstimator
 from smg.open3d import ReconstructionUtil
-from smg.utility import GeometryUtil, ImageUtil, RGBDSequenceUtil
+from smg.utility import DepthImageProcessor, GeometryUtil, ImageUtil, RGBDSequenceUtil
 
 
 class MVDepthOpen3DMappingSystem:
@@ -244,9 +244,8 @@ class MVDepthOpen3DMappingSystem:
 
                     # Then, provided we have depth values for more than 20% of the remaining pixels in the frame:
                     if np.count_nonzero(estimated_depth_image) / np.product(estimated_depth_image.shape) >= 0.2:
-                        from smg.utility.depth_image_processor import DepthImageProcessor
                         segmentation, stats, _ = DepthImageProcessor.segment_depth_image(
-                            estimated_depth_image, threshold=0.02
+                            estimated_depth_image, threshold=0.05
                         )
                         estimated_depth_image, _ = DepthImageProcessor.remove_isolated_regions(
                             estimated_depth_image, segmentation, stats, min_region_size=20000
