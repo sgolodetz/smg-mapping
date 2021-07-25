@@ -25,7 +25,7 @@ from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
 from smg.rigging.helpers import CameraPoseConverter
 from smg.skeletons import Skeleton3D, SkeletonRenderer, SkeletonUtil
-from smg.utility import DepthImageProcessor, GeometryUtil, RGBDSequenceUtil
+from smg.utility import GeometryUtil, RGBDSequenceUtil
 
 from ..selectors.bone_selector import BoneSelector
 
@@ -325,6 +325,8 @@ class MVDepthOctomapMappingSystem:
                     estimated_depth_image = receiver.get_depth_image()
                 else:
                     estimated_depth_image = self.__depth_estimator.estimate_depth(colour_image, mapping_w_t_c)
+                    if estimated_depth_image is not None:
+                        estimated_depth_image = MonocularDepthEstimator.postprocess_depth_image(estimated_depth_image)
 
                 end = timer()
                 print(f"  - Depth Estimation Time: {end - start}s")
@@ -334,45 +336,31 @@ class MVDepthOctomapMappingSystem:
                     # Limit the depth range to 3m (more distant points can be unreliable).
                     estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
 
-                    # Then, provided we have depth values for more than 20% of the remaining pixels in the frame:
-                    if np.count_nonzero(estimated_depth_image) / np.product(estimated_depth_image.shape) >= 0.2:
-                        segmentation, stats, _ = DepthImageProcessor.segment_depth_image(
-                            estimated_depth_image, threshold=0.05
-                        )
-                        estimated_depth_image, _ = DepthImageProcessor.remove_isolated_regions(
-                            estimated_depth_image, segmentation, stats, min_region_size=20000
-                        )
+                    # Get the people mask associated with any skeletons that we were detecting.
+                    if self.__detect_skeletons:
+                        _, people_mask = skeleton_detector.end_detection()
+                    else:
+                        people_mask: Optional[np.ndarray] = None
 
-                        # Median filter the depth image to help mitigate impulsive noise.
-                        estimated_depth_image = cv2.medianBlur(estimated_depth_image, 7)
-
-                        # Get the people mask associated with any skeletons that we were detecting.
-                        if self.__detect_skeletons:
-                            _, people_mask = skeleton_detector.end_detection()
-                        else:
-                            people_mask: Optional[np.ndarray] = None
-
-                        # Remove any detected people from the depth image.
-                        depopulated_depth_image: np.ndarray = estimated_depth_image.copy()
-                        if people_mask is not None:
-                            depopulated_depth_image = SkeletonUtil.depopulate_depth_image(
-                                depopulated_depth_image, people_mask
-                            )
-
-                        # Use the depth image and pose to make an Octomap point cloud.
-                        pcd: Pointcloud = OctomapUtil.make_point_cloud(
-                            depopulated_depth_image, mapping_w_t_c, intrinsics
+                    # Remove any detected people from the depth image.
+                    depopulated_depth_image: np.ndarray = estimated_depth_image.copy()
+                    if people_mask is not None:
+                        depopulated_depth_image = SkeletonUtil.depopulate_depth_image(
+                            depopulated_depth_image, people_mask
                         )
 
-                        # Fuse the point cloud into the octree.
-                        start = timer()
+                    # Use the depth image and pose to make an Octomap point cloud.
+                    pcd: Pointcloud = OctomapUtil.make_point_cloud(depopulated_depth_image, mapping_w_t_c, intrinsics)
 
-                        with self.__scene_lock:
-                            sensor_origin: Vector3 = Vector3(*mapping_w_t_c[0:3, 3])
-                            self.__octree.insert_point_cloud(pcd, sensor_origin, discretize=True)
+                    # Fuse the point cloud into the octree.
+                    start = timer()
 
-                        end = timer()
-                        print(f"  - Fusion Time: {end - start}s")
+                    with self.__scene_lock:
+                        sensor_origin: Vector3 = Vector3(*mapping_w_t_c[0:3, 3])
+                        self.__octree.insert_point_cloud(pcd, sensor_origin, discretize=True)
+
+                    end = timer()
+                    print(f"  - Fusion Time: {end - start}s")
 
                     # If no frame is currently being processed by the 3D object detector, schedule this one.
                     acquired: bool = self.__object_detection_lock.acquire(blocking=False)

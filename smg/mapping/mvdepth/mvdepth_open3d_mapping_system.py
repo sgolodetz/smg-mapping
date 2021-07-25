@@ -14,7 +14,7 @@ from smg.comms.mapping import MappingServer
 from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
 from smg.mvdepthnet import MonocularDepthEstimator
 from smg.open3d import ReconstructionUtil
-from smg.utility import DepthImageProcessor, GeometryUtil, ImageUtil, RGBDSequenceUtil
+from smg.utility import GeometryUtil, ImageUtil, RGBDSequenceUtil
 
 
 class MVDepthOpen3DMappingSystem:
@@ -233,6 +233,8 @@ class MVDepthOpen3DMappingSystem:
                     estimated_depth_image = receiver.get_depth_image()
                 else:
                     estimated_depth_image = self.__depth_estimator.estimate_depth(colour_image, mapping_w_t_c)
+                    if estimated_depth_image is not None:
+                        estimated_depth_image = MonocularDepthEstimator.postprocess_depth_image(estimated_depth_image)
 
                 end = timer()
                 print(f"  - Depth Estimation Time: {end - start}s")
@@ -242,35 +244,24 @@ class MVDepthOpen3DMappingSystem:
                     # Limit its range to 3m (more distant points can be unreliable).
                     estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
 
-                    # Then, provided we have depth values for more than 20% of the remaining pixels in the frame:
-                    if np.count_nonzero(estimated_depth_image) / np.product(estimated_depth_image.shape) >= 0.2:
-                        segmentation, stats, _ = DepthImageProcessor.segment_depth_image(
-                            estimated_depth_image, threshold=0.05
-                        )
-                        estimated_depth_image, _ = DepthImageProcessor.remove_isolated_regions(
-                            estimated_depth_image, segmentation, stats, min_region_size=20000
-                        )
+                    # Show the depth image that is to be fused into the TSDF.
+                    cv2.imshow("Postprocessed Depth Image", estimated_depth_image / 2)
+                    cv2.waitKey(1)
 
-                        # Median filter the depth image to help mitigate impulsive noise.
-                        estimated_depth_image = cv2.medianBlur(estimated_depth_image, 7)
+                    # Fuse the frame into the TSDF.
+                    start = timer()
 
-                        cv2.imshow("Postprocessed Depth Image", estimated_depth_image / 2)
-                        cv2.waitKey(1)
+                    fx, fy, cx, cy = intrinsics
+                    o3d_intrinsics: o3d.camera.PinholeCameraIntrinsic = o3d.camera.PinholeCameraIntrinsic(
+                        width, height, fx, fy, cx, cy
+                    )
+                    ReconstructionUtil.integrate_frame(
+                        ImageUtil.flip_channels(colour_image), estimated_depth_image, np.linalg.inv(mapping_w_t_c),
+                        o3d_intrinsics, self.__tsdf
+                    )
 
-                        # Fuse the frame into the TSDF.
-                        start = timer()
-
-                        fx, fy, cx, cy = intrinsics
-                        o3d_intrinsics: o3d.camera.PinholeCameraIntrinsic = o3d.camera.PinholeCameraIntrinsic(
-                            width, height, fx, fy, cx, cy
-                        )
-                        ReconstructionUtil.integrate_frame(
-                            ImageUtil.flip_channels(colour_image), estimated_depth_image, np.linalg.inv(mapping_w_t_c),
-                            o3d_intrinsics, self.__tsdf
-                        )
-
-                        end = timer()
-                        print(f"  - Fusion Time: {end - start}s")
+                    end = timer()
+                    print(f"  - Fusion Time: {end - start}s")
 
                     # If no frame is currently being processed by the 3D object detector, schedule this one.
                     acquired: bool = self.__detection_lock.acquire(blocking=False)
