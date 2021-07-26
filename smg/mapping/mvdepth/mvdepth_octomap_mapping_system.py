@@ -35,10 +35,11 @@ class MVDepthOctomapMappingSystem:
 
     # CONSTRUCTOR
 
-    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *, camera_mode: str = "free",
-                 detect_objects: bool = False, detect_skeletons: bool = False, output_dir: Optional[str] = None,
-                 save_frames: bool = False, save_reconstruction: bool = False, use_arm_selection: bool = False,
-                 use_received_depth: bool = False, window_size: Tuple[int, int] = (640, 480)):
+    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
+                 camera_mode: str = "free", detect_objects: bool = False, detect_skeletons: bool = False,
+                 output_dir: Optional[str] = None, postprocess_depth: bool = True, save_frames: bool = False,
+                 save_reconstruction: bool = False, use_arm_selection: bool = False, use_received_depth: bool = False,
+                 window_size: Tuple[int, int] = (640, 480)):
         """
         Construct a mapping system that estimates depths using MVDepthNet and reconstructs an Octomap.
 
@@ -48,6 +49,7 @@ class MVDepthOctomapMappingSystem:
         :param detect_objects:      Whether to detect 3D objects.
         :param detect_skeletons:    Whether to detect 3D skeletons.
         :param output_dir:          An optional directory into which to save output files.
+        :param postprocess_depth:   Whether to post-process the depth images.
         :param save_frames:         Whether to save the sequence of frames used to reconstruct the Octomap.
         :param save_reconstruction: Whether to save the reconstructed Octomap.
         :param use_arm_selection:   Whether to allow the user to select 3D points in the scene using their arm.
@@ -60,6 +62,7 @@ class MVDepthOctomapMappingSystem:
         self.__detect_objects: bool = detect_objects
         self.__detect_skeletons: bool = detect_skeletons
         self.__output_dir: Optional[str] = output_dir
+        self.__postprocess_depth: bool = postprocess_depth
         self.__save_frames: bool = save_frames
         self.__save_reconstruction: bool = save_reconstruction
         self.__server: MappingServer = server
@@ -315,16 +318,24 @@ class MVDepthOctomapMappingSystem:
                         time.sleep(0.01)
                         continue
 
-                # Try to estimate a depth image for the frame.
+                # Try to estimate (or otherwise obtain) a depth image for the frame.
                 start = timer()
 
                 # noinspection PyUnusedLocal
                 estimated_depth_image: Optional[np.ndarray] = None
 
+                # If requested, use the depth image received from the (presumably RGB-D) client.
                 if self.__use_received_depth:
                     estimated_depth_image = receiver.get_depth_image()
+
+                # Otherwise:
                 else:
+                    # Estimate a depth image using the monocular depth estimator.
                     estimated_depth_image = self.__depth_estimator.estimate_depth(colour_image, mapping_w_t_c)
+
+                    # If a depth image was successfully estimated, post-process it if appropriate.
+                    if estimated_depth_image is not None and self.__postprocess_depth:
+                        estimated_depth_image = MonocularDepthEstimator.postprocess_depth_image(estimated_depth_image)
 
                 end = timer()
                 print(f"  - Depth Estimation Time: {end - start}s")
@@ -354,8 +365,8 @@ class MVDepthOctomapMappingSystem:
                     start = timer()
 
                     with self.__scene_lock:
-                        origin: Vector3 = Vector3(0.0, 0.0, 0.0)
-                        self.__octree.insert_point_cloud(pcd, origin, discretize=True)
+                        sensor_origin: Vector3 = Vector3(*mapping_w_t_c[0:3, 3])
+                        self.__octree.insert_point_cloud(pcd, sensor_origin, discretize=True)
 
                     end = timer()
                     print(f"  - Fusion Time: {end - start}s")
