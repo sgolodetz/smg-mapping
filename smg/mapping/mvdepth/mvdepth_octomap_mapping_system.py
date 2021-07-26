@@ -315,16 +315,22 @@ class MVDepthOctomapMappingSystem:
                         time.sleep(0.01)
                         continue
 
-                # Try to estimate a depth image for the frame.
+                # Try to estimate (or otherwise obtain) a depth image for the frame.
                 start = timer()
 
                 # noinspection PyUnusedLocal
                 estimated_depth_image: Optional[np.ndarray] = None
 
+                # If requested, use the depth image received from the (presumably RGB-D) client.
                 if self.__use_received_depth:
                     estimated_depth_image = receiver.get_depth_image()
+
+                # Otherwise:
                 else:
+                    # Estimate a depth image using the monocular depth estimator.
                     estimated_depth_image = self.__depth_estimator.estimate_depth(colour_image, mapping_w_t_c)
+
+                    # If a depth image was successfully estimated, post-process it if appropriate.
                     if estimated_depth_image is not None:
                         estimated_depth_image = MonocularDepthEstimator.postprocess_depth_image(estimated_depth_image)
 
