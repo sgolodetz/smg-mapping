@@ -22,19 +22,22 @@ class MVDepthOpen3DMappingSystem:
 
     # CONSTRUCTOR
 
-    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *, detect_objects: bool = False,
-                 output_dir: Optional[str] = None, save_frames: bool = False, use_received_depth: bool = False):
+    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *, debug: bool = False,
+                 detect_objects: bool = False, output_dir: Optional[str] = None, save_frames: bool = False,
+                 use_received_depth: bool = False):
         """
         Construct a mapping system that estimates depths using MVDepthNet and reconstructs an Open3D TSDF.
 
         :param server:              The mapping server.
         :param depth_estimator:     The monocular depth estimator.
+        :param debug:               Whether to enable debugging.
         :param detect_objects:      Whether to detect 3D objects.
         :param output_dir:          An optional directory into which to save output files.
         :param save_frames:         Whether to save the sequence of frames used to reconstruct the TSDF.
         :param use_received_depth:  Whether to use depth images received from the client instead of estimating depth.
         """
         self.__client_id: int = 0
+        self.__debug: bool = debug
         self.__depth_estimator: MonocularDepthEstimator = depth_estimator
         self.__detect_objects: bool = detect_objects
         self.__output_dir: Optional[str] = output_dir
@@ -244,9 +247,10 @@ class MVDepthOpen3DMappingSystem:
                     # Limit its range to 3m (more distant points can be unreliable).
                     estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
 
-                    # Show the depth image that is to be fused into the TSDF.
-                    cv2.imshow("Postprocessed Depth Image", estimated_depth_image / 2)
-                    cv2.waitKey(1)
+                    # If we're debugging, show the depth image that is to be fused into the TSDF.
+                    if self.__debug:
+                        cv2.imshow("Postprocessed Depth Image", estimated_depth_image / 2)
+                        cv2.waitKey(1)
 
                     # Fuse the frame into the TSDF.
                     start = timer()
