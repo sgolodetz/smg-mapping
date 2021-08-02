@@ -28,14 +28,15 @@ DS_TRAINING = EDroneState(3)
 DS_METRIC = EDroneState(4)
 
 
-class MetricDroneFSM:
-    """A finite state machine that allows metric tracking to be configured for a drone.."""
+class ArUcoMetricDroneFSM:
+    """A finite state machine that allows metric tracking to be configured for a drone by using an ArUco marker."""
 
     # CONSTRUCTOR
 
     def __init__(self, drone: Drone, joystick: FutabaT6K, mapping_client: Optional[MappingClient] = None):
         """
-        Construct a finite state machine that allows metric tracking to be configured for a drone.
+        Construct a finite state machine that allows metric tracking to be configured for a drone by using
+        an ArUco marker.
 
         :param drone:           The drone.
         :param joystick:        The joystick that will be used to control the drone's movement.
