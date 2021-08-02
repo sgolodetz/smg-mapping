@@ -8,7 +8,7 @@ from smg.comms.mapping import MappingClient
 from smg.joysticks import FutabaT6K
 from smg.relocalisation.poseglobalisers import HeightBasedMonocularPoseGlobaliser
 from smg.rotory.drones import Drone
-from smg.utility import ImageUtil
+from smg.utility import ImageUtil, RGBDSequenceUtil
 
 
 class EDroneState(int):
@@ -29,7 +29,8 @@ class HeightMetricDroneFSM:
 
     # CONSTRUCTOR
 
-    def __init__(self, drone: Drone, joystick: FutabaT6K, mapping_client: Optional[MappingClient] = None):
+    def __init__(self, drone: Drone, joystick: FutabaT6K, mapping_client: Optional[MappingClient] = None, *,
+                 output_dir: Optional[str] = None, save_frames: bool = False):
         """
         Construct a finite state machine that allows metric tracking to be configured for a drone by using
         the drone's height.
@@ -37,6 +38,8 @@ class HeightMetricDroneFSM:
         :param drone:           The drone.
         :param joystick:        The joystick that will be used to control the drone's movement.
         :param mapping_client:  The mapping client to use (if any).
+        :param output_dir:      An optional directory into which to save output files.
+        :param save_frames:     Whether to save the sequence of frames that have been obtained from the drone.
         """
         self.__calibration_message_sent: bool = False
         self.__drone: Drone = drone
@@ -44,7 +47,9 @@ class HeightMetricDroneFSM:
         self.__joystick: FutabaT6K = joystick
         self.__landing_event: Event = Event()
         self.__mapping_client: Optional[MappingClient] = mapping_client
+        self.__output_dir: Optional[str] = output_dir
         self.__pose_globaliser: HeightBasedMonocularPoseGlobaliser = HeightBasedMonocularPoseGlobaliser(debug=True)
+        self.__save_frames: bool = save_frames
         self.__state: EDroneState = DS_NON_METRIC
         self.__takeoff_event: Event = Event()
         self.__throttle_down_event: Event = Event()
@@ -142,7 +147,7 @@ class HeightMetricDroneFSM:
         elif self.__state == DS_TRAINING:
             self.__iterate_training(tracker_i_t_c, height)
         elif self.__state == DS_METRIC:
-            self.__iterate_metric(image, tracker_i_t_c, height)
+            self.__iterate_metric(image, intrinsics, tracker_i_t_c, height)
 
         # Record the current setting of the throttle for later, so we can detect throttle up/down events that occur.
         self.__throttle_prev = throttle
@@ -163,8 +168,8 @@ class HeightMetricDroneFSM:
 
     # PRIVATE METHODS
 
-    def __iterate_metric(self, image: np.ndarray, tracker_i_t_c: Optional[np.ndarray],
-                         height: Optional[float]) -> None:
+    def __iterate_metric(self, image: np.ndarray, intrinsics: Tuple[float, float, float, float],
+                         tracker_i_t_c: Optional[np.ndarray], height: Optional[float]) -> None:
         """
         Run an iteration of the 'metric' state.
 
@@ -174,6 +179,7 @@ class HeightMetricDroneFSM:
             Moving the throttle up/down will then set/clear a fixed height.
 
         :param image:           The most recent image from the drone.
+        :param intrinsics:      TODO
         :param tracker_i_t_c:   A non-metric transformation from current camera space to initial camera space,
                                 as estimated by the tracker.
         :param height:          TODO
@@ -183,13 +189,25 @@ class HeightMetricDroneFSM:
             # Use the globaliser to obtain the metric tracker pose.
             self.__tracker_w_t_c = self.__pose_globaliser.apply(tracker_i_t_c, height)
 
-            # If we're reconstructing a map, send the current frame across to the mapping server.
+            # Make a dummy depth image.
+            dummy_depth_image: np.ndarray = np.zeros(image.shape[:2], dtype=np.float32)
+
+            # If we're reconstructing a map:
             if self.__mapping_client is not None:
-                dummy_depth_image: np.ndarray = np.zeros(image.shape[:2], dtype=np.float32)
+                # Send the current frame across to the mapping server.
                 self.__mapping_client.send_frame_message(lambda msg: RGBDFrameMessageUtil.fill_frame_message(
                     self.__frame_idx, image, ImageUtil.to_short_depth(dummy_depth_image), self.__tracker_w_t_c, msg
                 ))
-                self.__frame_idx += 1
+
+            # If an output directory was specified and we're saving frames, save the frame to disk.
+            if self.__output_dir is not None and self.__save_frames:
+                RGBDSequenceUtil.save_frame(
+                    self.__frame_idx, self.__output_dir, image, dummy_depth_image, self.__tracker_w_t_c,
+                    colour_intrinsics=intrinsics, depth_intrinsics=intrinsics
+                )
+
+            # Increment the frame index.
+            self.__frame_idx += 1
         else:
             # If the non-metric tracker pose isn't available, the metric tracker pose clearly can't be estimated.
             self.__tracker_w_t_c = None
