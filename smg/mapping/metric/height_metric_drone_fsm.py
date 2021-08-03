@@ -187,7 +187,7 @@ class HeightMetricDroneFSM:
         # If the non-metric tracker pose is available:
         if tracker_i_t_c is not None:
             # Use the globaliser to obtain the metric tracker pose.
-            self.__tracker_w_t_c = self.__pose_globaliser.apply(tracker_i_t_c, height)
+            self.__tracker_w_t_c = self.__pose_globaliser.apply(tracker_i_t_c)
 
             # Make a dummy depth image.
             dummy_depth_image: np.ndarray = np.zeros(image.shape[:2], dtype=np.float32)
