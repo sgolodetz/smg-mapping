@@ -174,15 +174,14 @@ class HeightBasedMetricDroneFSM:
         Run an iteration of the 'metric' state.
 
         .. note::
-            The drone enters this state by taking off after training the globaliser. It then never leaves this state.
-            On entering this state, the throttle will be down (as it was during the training of the globaliser).
-            Moving the throttle up/down will then set/clear a fixed height.
+            The drone enters this state by throttling down after training the globaliser. It then never leaves
+            this state. On entering this state, the throttle will be down.
 
         :param image:           The most recent image from the drone.
-        :param intrinsics:      TODO
+        :param intrinsics:      The drone's camera intrinsics.
         :param tracker_i_t_c:   A non-metric transformation from current camera space to initial camera space,
                                 as estimated by the tracker.
-        :param height:          TODO
+        :param height:          The most recent height (in m) for the drone.
         """
         # If the non-metric tracker pose is available:
         if tracker_i_t_c is not None:
@@ -218,8 +217,7 @@ class HeightBasedMetricDroneFSM:
 
         # If the height is available, also print that.
         if height is not None:
-            print("Height:")
-            print(height)
+            print(f"Height: {height}")
 
     def __iterate_non_metric(self) -> None:
         """
@@ -245,12 +243,12 @@ class HeightBasedMetricDroneFSM:
 
         :param tracker_i_t_c:   A non-metric transformation from current camera space to initial camera space,
                                 as estimated by the tracker.
-        :param height:          TODO
+        :param height:          The most recent height (in m) for the drone.
         """
         # Train the pose globaliser if possible.
         if tracker_i_t_c is not None and height is not None:
             self.__pose_globaliser.train(tracker_i_t_c, height)
 
-        # If the user throttles down, complete the configuration process.
+        # If the user throttles down, complete the calibration process.
         if self.__throttle_down_event.is_set():
             self.__state = HeightBasedMetricDroneFSM.DS_METRIC
