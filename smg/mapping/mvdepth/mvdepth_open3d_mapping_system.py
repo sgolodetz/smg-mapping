@@ -238,6 +238,9 @@ class MVDepthOpen3DMappingSystem:
                 if self.__use_received_depth:
                     estimated_depth_image = receiver.get_depth_image()
 
+                    # Limit the depth range to 3m (more distant points can be unreliable).
+                    estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
+
                 # Otherwise:
                 else:
                     # Estimate a depth image using the monocular depth estimator.
@@ -252,9 +255,6 @@ class MVDepthOpen3DMappingSystem:
 
                 # If a depth image was successfully estimated:
                 if estimated_depth_image is not None:
-                    # Limit its range to 3m (more distant points can be unreliable).
-                    estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
-
                     # If we're debugging, show the depth image that is to be fused into the TSDF.
                     if self.__debug:
                         cv2.imshow("Post-processed Depth Image", estimated_depth_image / 2)
