@@ -14,6 +14,7 @@ from smg.comms.mapping import MappingServer
 from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
 from smg.mvdepthnet import MonocularDepthEstimator
 from smg.open3d import ReconstructionUtil
+from smg.relocalisation import ArUcoPnPRelocaliser
 from smg.utility import GeometryUtil, ImageUtil, RGBDSequenceUtil
 
 
@@ -22,7 +23,8 @@ class MVDepthOpen3DMappingSystem:
 
     # CONSTRUCTOR
 
-    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *, debug: bool = False,
+    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
+                 aruco_relocaliser: Optional[ArUcoPnPRelocaliser] = None, debug: bool = False,
                  detect_objects: bool = False, output_dir: Optional[str] = None, postprocess_depth: bool = True,
                  save_frames: bool = False, use_received_depth: bool = False):
         """
@@ -30,6 +32,7 @@ class MVDepthOpen3DMappingSystem:
 
         :param server:              The mapping server.
         :param depth_estimator:     The monocular depth estimator.
+        :param aruco_relocaliser:   An optional ArUco+PnP relocaliser that can be used to align the map with a marker.
         :param debug:               Whether to enable debugging.
         :param detect_objects:      Whether to detect 3D objects.
         :param output_dir:          An optional directory into which to save output files.
@@ -37,6 +40,8 @@ class MVDepthOpen3DMappingSystem:
         :param save_frames:         Whether to save the sequence of frames used to reconstruct the TSDF.
         :param use_received_depth:  Whether to use depth images received from the client instead of estimating depth.
         """
+        self.__aruco_from_world_estimates: List[np.ndarray] = []
+        self.__aruco_relocaliser: Optional[ArUcoPnPRelocaliser] = aruco_relocaliser
         self.__client_id: int = 0
         self.__debug: bool = debug
         self.__depth_estimator: MonocularDepthEstimator = depth_estimator
@@ -77,6 +82,12 @@ class MVDepthOpen3DMappingSystem:
         self.__mapping_thread: Optional[threading.Thread] = None
 
     # PUBLIC METHODS
+
+    def get_aruco_from_world(self) -> Optional[np.ndarray]:
+        if len(self.__aruco_from_world_estimates) > 0:
+            return GeometryUtil.blend_rigid_transforms(self.__aruco_from_world_estimates)
+        else:
+            return None
 
     def run(self) -> Tuple[o3d.pipelines.integration.ScalableTSDFVolume, List[ObjectDetector3D.Object3D]]:
         """
@@ -218,6 +229,22 @@ class MVDepthOpen3DMappingSystem:
                 self.__server.get_frame(self.__client_id, receiver)
                 colour_image: np.ndarray = receiver.get_rgb_image()
                 mapping_w_t_c: np.ndarray = receiver.get_pose()
+
+                # If we're using an ArUco+PnP relocaliser, try to use it to estimate the camera pose, so that the
+                # map can later be aligned with the marker.
+                if self.__aruco_relocaliser is not None:
+                    aruco_from_camera: Optional[np.ndarray] = self.__aruco_relocaliser.estimate_pose(
+                        colour_image, intrinsics
+                    )
+                    if aruco_from_camera is not None:
+                        print("ArUco from Camera:")
+                        print(aruco_from_camera)
+
+                        aruco_from_world_estimate: np.ndarray = aruco_from_camera @ np.linalg.inv(mapping_w_t_c)
+                        print("ArUco from World Estimate:")
+                        print(aruco_from_world_estimate)
+
+                        self.__aruco_from_world_estimates.append(aruco_from_world_estimate)
 
                 # If an output directory was specified and we're saving frames, save the frame to disk.
                 if self.__output_dir is not None and self.__save_frames:
