@@ -6,7 +6,7 @@ from typing import Optional, Tuple
 from smg.comms.base import RGBDFrameMessageUtil
 from smg.comms.mapping import MappingClient
 from smg.joysticks import FutabaT6K
-from smg.relocalisation.poseglobalisers import ArUcoMonocularPoseGlobaliser
+from smg.relocalisation.poseglobalisers import ArUcoBasedMonocularPoseGlobaliser
 from smg.rotory.drones import Drone
 from smg.utility import ImageUtil
 
@@ -28,7 +28,7 @@ DS_TRAINING = EDroneState(3)
 DS_METRIC = EDroneState(4)
 
 
-class ArUcoMetricDroneFSM:
+class ArUcoBasedMetricDroneFSM:
     """A finite state machine that allows metric tracking to be configured for a drone by using an ArUco marker."""
 
     # CONSTRUCTOR
@@ -48,7 +48,7 @@ class ArUcoMetricDroneFSM:
         self.__joystick: FutabaT6K = joystick
         self.__landing_event: Event = Event()
         self.__mapping_client: Optional[MappingClient] = mapping_client
-        self.__pose_globaliser: ArUcoMonocularPoseGlobaliser = ArUcoMonocularPoseGlobaliser(debug=True)
+        self.__pose_globaliser: ArUcoBasedMonocularPoseGlobaliser = ArUcoBasedMonocularPoseGlobaliser(debug=True)
         self.__relocaliser_w_t_c_for_training: Optional[np.ndarray] = None
         self.__state: EDroneState = DS_NON_METRIC
         self.__takeoff_event: Event = Event()

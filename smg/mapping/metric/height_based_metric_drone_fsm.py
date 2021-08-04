@@ -6,7 +6,7 @@ from typing import Optional, Tuple
 from smg.comms.base import RGBDFrameMessageUtil
 from smg.comms.mapping import MappingClient
 from smg.joysticks import FutabaT6K
-from smg.relocalisation.poseglobalisers import HeightMonocularPoseGlobaliser
+from smg.relocalisation.poseglobalisers import HeightBasedMonocularPoseGlobaliser
 from smg.rotory.drones import Drone
 from smg.utility import ImageUtil, RGBDSequenceUtil
 
@@ -24,7 +24,7 @@ DS_TRAINING = EDroneState(1)
 DS_METRIC = EDroneState(2)
 
 
-class HeightMetricDroneFSM:
+class HeightBasedMetricDroneFSM:
     """A finite state machine that allows metric tracking to be configured for a drone by using the drone's height."""
 
     # CONSTRUCTOR
@@ -48,7 +48,7 @@ class HeightMetricDroneFSM:
         self.__landing_event: Event = Event()
         self.__mapping_client: Optional[MappingClient] = mapping_client
         self.__output_dir: Optional[str] = output_dir
-        self.__pose_globaliser: HeightMonocularPoseGlobaliser = HeightMonocularPoseGlobaliser(debug=True)
+        self.__pose_globaliser: HeightBasedMonocularPoseGlobaliser = HeightBasedMonocularPoseGlobaliser(debug=True)
         self.__save_frames: bool = save_frames
         self.__state: EDroneState = DS_NON_METRIC
         self.__takeoff_event: Event = Event()
