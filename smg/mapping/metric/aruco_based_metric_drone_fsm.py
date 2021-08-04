@@ -50,13 +50,13 @@ class ArUcoBasedMetricDroneFSM:
         self.__mapping_client: Optional[MappingClient] = mapping_client
         self.__pose_globaliser: ArUcoBasedMonocularPoseGlobaliser = ArUcoBasedMonocularPoseGlobaliser(debug=True)
         self.__relocaliser_w_t_c_for_training: Optional[np.ndarray] = None
+        self.__should_terminate: bool = False
         self.__state: ArUcoBasedMetricDroneFSM.EDroneState = ArUcoBasedMetricDroneFSM.DS_NON_METRIC
         self.__takeoff_event: Event = Event()
         self.__throttle_down_event: Event = Event()
         self.__throttle_prev: Optional[float] = None
         self.__throttle_up_event: Event = Event()
         self.__tracker_w_t_c: Optional[np.ndarray] = None
-        self.__should_terminate: bool = False
 
     # PUBLIC METHODS
 

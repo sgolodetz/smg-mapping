@@ -50,13 +50,13 @@ class HeightBasedMetricDroneFSM:
         self.__output_dir: Optional[str] = output_dir
         self.__pose_globaliser: HeightBasedMonocularPoseGlobaliser = HeightBasedMonocularPoseGlobaliser(debug=True)
         self.__save_frames: bool = save_frames
+        self.__should_terminate: bool = False
         self.__state: HeightBasedMetricDroneFSM.EDroneState = HeightBasedMetricDroneFSM.DS_NON_METRIC
         self.__takeoff_event: Event = Event()
         self.__throttle_down_event: Event = Event()
         self.__throttle_prev: Optional[float] = None
         self.__throttle_up_event: Event = Event()
         self.__tracker_w_t_c: Optional[np.ndarray] = None
-        self.__should_terminate: bool = False
 
     # PUBLIC METHODS
 
