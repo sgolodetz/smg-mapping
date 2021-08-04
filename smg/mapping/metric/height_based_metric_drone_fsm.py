@@ -11,21 +11,21 @@ from smg.rotory.drones import Drone
 from smg.utility import ImageUtil, RGBDSequenceUtil
 
 
-class EDroneState(int):
-    """The different states in which a drone can be."""
-    pass
-
-
-# Fly around as normal with non-metric tracking.
-DS_NON_METRIC = EDroneState(0)
-# Train the globaliser to estimate the scale.
-DS_TRAINING = EDroneState(1)
-# Fly around as normal with metric tracking.
-DS_METRIC = EDroneState(2)
-
-
 class HeightBasedMetricDroneFSM:
     """A finite state machine that allows metric tracking to be configured for a drone by using the drone's height."""
+
+    # NESTED TYPES
+
+    class EDroneState(int):
+        """The different states in which a drone can be."""
+        pass
+
+    # Fly around as normal with non-metric tracking.
+    DS_NON_METRIC = EDroneState(0)
+    # Train the globaliser to estimate the scale.
+    DS_TRAINING = EDroneState(1)
+    # Fly around as normal with metric tracking.
+    DS_METRIC = EDroneState(2)
 
     # CONSTRUCTOR
 
@@ -50,7 +50,7 @@ class HeightBasedMetricDroneFSM:
         self.__output_dir: Optional[str] = output_dir
         self.__pose_globaliser: HeightBasedMonocularPoseGlobaliser = HeightBasedMonocularPoseGlobaliser(debug=True)
         self.__save_frames: bool = save_frames
-        self.__state: EDroneState = DS_NON_METRIC
+        self.__state: HeightBasedMetricDroneFSM.EDroneState = HeightBasedMetricDroneFSM.DS_NON_METRIC
         self.__takeoff_event: Event = Event()
         self.__throttle_down_event: Event = Event()
         self.__throttle_prev: Optional[float] = None
@@ -142,11 +142,11 @@ class HeightBasedMetricDroneFSM:
         tracker_i_t_c: Optional[np.ndarray] = np.linalg.inv(tracker_c_t_i) if tracker_c_t_i is not None else None
 
         # Run an iteration of the current state.
-        if self.__state == DS_NON_METRIC:
+        if self.__state == HeightBasedMetricDroneFSM.DS_NON_METRIC:
             self.__iterate_non_metric()
-        elif self.__state == DS_TRAINING:
+        elif self.__state == HeightBasedMetricDroneFSM.DS_TRAINING:
             self.__iterate_training(tracker_i_t_c, height)
-        elif self.__state == DS_METRIC:
+        elif self.__state == HeightBasedMetricDroneFSM.DS_METRIC:
             self.__iterate_metric(image, intrinsics, tracker_i_t_c, height)
 
         # Record the current setting of the throttle for later, so we can detect throttle up/down events that occur.
@@ -232,7 +232,7 @@ class HeightBasedMetricDroneFSM:
         """
         # If the user throttles up, start the calibration process.
         if self.__throttle_up_event.is_set():
-            self.__state = DS_TRAINING
+            self.__state = HeightBasedMetricDroneFSM.DS_TRAINING
 
     def __iterate_training(self, tracker_i_t_c: Optional[np.ndarray], height: Optional[float]) -> None:
         """
@@ -253,4 +253,4 @@ class HeightBasedMetricDroneFSM:
 
         # If the user throttles down, complete the configuration process.
         if self.__throttle_down_event.is_set():
-            self.__state = DS_METRIC
+            self.__state = HeightBasedMetricDroneFSM.DS_METRIC

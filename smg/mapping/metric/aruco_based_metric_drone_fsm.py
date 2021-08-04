@@ -11,25 +11,25 @@ from smg.rotory.drones import Drone
 from smg.utility import ImageUtil
 
 
-class EDroneState(int):
-    """The different states in which a drone can be."""
-    pass
-
-
-# Fly around as normal with non-metric tracking.
-DS_NON_METRIC = EDroneState(0)
-# Fly around in front of the marker to set the reference space.
-DS_SETTING_REFERENCE = EDroneState(1)
-# Land prior to training the globaliser to estimate the scale.
-DS_PREPARING_TO_TRAIN = EDroneState(2)
-# Whilst on the ground, train the globaliser to estimate the scale.
-DS_TRAINING = EDroneState(3)
-# Fly around as normal with metric tracking.
-DS_METRIC = EDroneState(4)
-
-
 class ArUcoBasedMetricDroneFSM:
     """A finite state machine that allows metric tracking to be configured for a drone by using an ArUco marker."""
+
+    # NESTED TYPES
+
+    class EDroneState(int):
+        """The different states in which a drone can be."""
+        pass
+
+    # Fly around as normal with non-metric tracking.
+    DS_NON_METRIC = EDroneState(0)
+    # Fly around in front of the marker to set the reference space.
+    DS_SETTING_REFERENCE = EDroneState(1)
+    # Land prior to training the globaliser to estimate the scale.
+    DS_PREPARING_TO_TRAIN = EDroneState(2)
+    # Whilst on the ground, train the globaliser to estimate the scale.
+    DS_TRAINING = EDroneState(3)
+    # Fly around as normal with metric tracking.
+    DS_METRIC = EDroneState(4)
 
     # CONSTRUCTOR
 
@@ -50,7 +50,7 @@ class ArUcoBasedMetricDroneFSM:
         self.__mapping_client: Optional[MappingClient] = mapping_client
         self.__pose_globaliser: ArUcoBasedMonocularPoseGlobaliser = ArUcoBasedMonocularPoseGlobaliser(debug=True)
         self.__relocaliser_w_t_c_for_training: Optional[np.ndarray] = None
-        self.__state: EDroneState = DS_NON_METRIC
+        self.__state: ArUcoBasedMetricDroneFSM.EDroneState = ArUcoBasedMetricDroneFSM.DS_NON_METRIC
         self.__takeoff_event: Event = Event()
         self.__throttle_down_event: Event = Event()
         self.__throttle_prev: Optional[float] = None
@@ -143,15 +143,15 @@ class ArUcoBasedMetricDroneFSM:
         tracker_i_t_c: Optional[np.ndarray] = np.linalg.inv(tracker_c_t_i) if tracker_c_t_i is not None else None
 
         # Run an iteration of the current state.
-        if self.__state == DS_NON_METRIC:
+        if self.__state == ArUcoBasedMetricDroneFSM.DS_NON_METRIC:
             self.__iterate_non_metric()
-        elif self.__state == DS_SETTING_REFERENCE:
+        elif self.__state == ArUcoBasedMetricDroneFSM.DS_SETTING_REFERENCE:
             self.__iterate_setting_reference(tracker_i_t_c, relocaliser_w_t_c)
-        elif self.__state == DS_PREPARING_TO_TRAIN:
+        elif self.__state == ArUcoBasedMetricDroneFSM.DS_PREPARING_TO_TRAIN:
             self.__iterate_preparing_to_train()
-        elif self.__state == DS_TRAINING:
+        elif self.__state == ArUcoBasedMetricDroneFSM.DS_TRAINING:
             self.__iterate_training(tracker_i_t_c)
-        elif self.__state == DS_METRIC:
+        elif self.__state == ArUcoBasedMetricDroneFSM.DS_METRIC:
             self.__iterate_metric(image, tracker_i_t_c, relocaliser_w_t_c)
 
         # Record the current setting of the throttle for later, so we can detect throttle up/down events that occur.
@@ -236,7 +236,7 @@ class ArUcoBasedMetricDroneFSM:
         """
         # If the user throttles up, start the calibration process.
         if self.__throttle_up_event.is_set():
-            self.__state = DS_SETTING_REFERENCE
+            self.__state = ArUcoBasedMetricDroneFSM.DS_SETTING_REFERENCE
 
     def __iterate_preparing_to_train(self) -> None:
         """
@@ -253,11 +253,11 @@ class ArUcoBasedMetricDroneFSM:
         """
         # If the user has told the drone to take off, return to the previous state in the configuration process.
         if self.__takeoff_event.is_set():
-            self.__state = DS_SETTING_REFERENCE
+            self.__state = ArUcoBasedMetricDroneFSM.DS_SETTING_REFERENCE
 
         # If the user has throttled down, move on to the next state in the configuration process.
         if self.__throttle_down_event.is_set():
-            self.__state = DS_TRAINING
+            self.__state = ArUcoBasedMetricDroneFSM.DS_TRAINING
 
     def __iterate_setting_reference(self, tracker_i_t_c: Optional[np.ndarray],
                                     relocaliser_w_t_c: Optional[np.ndarray]) -> None:
@@ -287,7 +287,7 @@ class ArUcoBasedMetricDroneFSM:
             # If the user has told the drone to land, move on to the next state in the configuration process.
             # Otherwise, stay in this state, and wait for the user to take off and try again.
             if self.__landing_event.is_set():
-                self.__state = DS_PREPARING_TO_TRAIN
+                self.__state = ArUcoBasedMetricDroneFSM.DS_PREPARING_TO_TRAIN
 
                 # It's unlikely that we'll be able to see the ArUco marker to relocalise once we're on the ground,
                 # so estimate the relocaliser pose we'll have at that point by using the pose currently output by
@@ -297,7 +297,7 @@ class ArUcoBasedMetricDroneFSM:
 
         # If the user has throttled down, stop the configuration process.
         if self.__throttle_down_event.is_set():
-            self.__state = DS_NON_METRIC
+            self.__state = ArUcoBasedMetricDroneFSM.DS_NON_METRIC
 
     def __iterate_training(self, tracker_i_t_c: Optional[np.ndarray]) -> None:
         """
@@ -318,8 +318,8 @@ class ArUcoBasedMetricDroneFSM:
 
         # If the user has told the drone to take off, complete the configuration process.
         if self.__takeoff_event.is_set():
-            self.__state = DS_METRIC
+            self.__state = ArUcoBasedMetricDroneFSM.DS_METRIC
 
         # If the user has throttled up, return to the previous state in the configuration process.
         if self.__throttle_up_event.is_set():
-            self.__state = DS_PREPARING_TO_TRAIN
+            self.__state = ArUcoBasedMetricDroneFSM.DS_PREPARING_TO_TRAIN
