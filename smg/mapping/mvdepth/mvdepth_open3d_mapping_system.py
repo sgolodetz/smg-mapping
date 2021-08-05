@@ -84,6 +84,14 @@ class MVDepthOpen3DMappingSystem:
     # PUBLIC METHODS
 
     def get_aruco_from_world(self) -> Optional[np.ndarray]:
+        """
+        Try to get the transformation from world space to ArUco marker space.
+
+        .. note::
+            This will only be available if we're aligning the map with a marker using an ArUco+PnP relocaliser.
+
+        :return:    The transformation from world space to ArUco marker space, if available, or None otherwise.
+        """
         if len(self.__aruco_from_world_estimates) > 0:
             return GeometryUtil.blend_rigid_transforms(self.__aruco_from_world_estimates)
         else:
@@ -237,13 +245,7 @@ class MVDepthOpen3DMappingSystem:
                         colour_image, intrinsics
                     )
                     if aruco_from_camera is not None:
-                        print("ArUco from Camera:")
-                        print(aruco_from_camera)
-
                         aruco_from_world_estimate: np.ndarray = aruco_from_camera @ np.linalg.inv(mapping_w_t_c)
-                        print("ArUco from World Estimate:")
-                        print(aruco_from_world_estimate)
-
                         self.__aruco_from_world_estimates.append(aruco_from_world_estimate)
 
                 # If an output directory was specified and we're saving frames, save the frame to disk.
