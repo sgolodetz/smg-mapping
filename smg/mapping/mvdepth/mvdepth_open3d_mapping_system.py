@@ -15,7 +15,7 @@ from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
 from smg.mvdepthnet import MonocularDepthEstimator
 from smg.open3d import ReconstructionUtil
 from smg.relocalisation import ArUcoPnPRelocaliser
-from smg.utility import GeometryUtil, ImageUtil, RGBDSequenceUtil
+from smg.utility import GeometryUtil, ImageUtil, SequenceUtil
 
 
 class MVDepthOpen3DMappingSystem:
@@ -251,7 +251,7 @@ class MVDepthOpen3DMappingSystem:
                 # If an output directory was specified and we're saving frames, save the frame to disk.
                 if self.__output_dir is not None and self.__save_frames:
                     depth_image: np.ndarray = receiver.get_depth_image()
-                    RGBDSequenceUtil.save_frame(
+                    SequenceUtil.save_rgbd_frame(
                         frame_idx, self.__output_dir, colour_image, depth_image, mapping_w_t_c,
                         colour_intrinsics=intrinsics, depth_intrinsics=intrinsics
                     )
