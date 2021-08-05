@@ -25,7 +25,7 @@ from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
 from smg.rigging.helpers import CameraPoseConverter
 from smg.skeletons import Skeleton3D, SkeletonRenderer, SkeletonUtil
-from smg.utility import GeometryUtil, RGBDSequenceUtil
+from smg.utility import GeometryUtil, SequenceUtil
 
 from ..selectors.bone_selector import BoneSelector
 
@@ -301,7 +301,7 @@ class MVDepthOctomapMappingSystem:
                 # If an output directory was specified and we're saving frames, save the frame to disk.
                 if self.__output_dir is not None and self.__save_frames:
                     depth_image: np.ndarray = receiver.get_depth_image()
-                    RGBDSequenceUtil.save_frame(
+                    SequenceUtil.save_rgbd_frame(
                         frame_idx, self.__output_dir, colour_image, depth_image, mapping_w_t_c,
                         colour_intrinsics=intrinsics, depth_intrinsics=intrinsics
                     )

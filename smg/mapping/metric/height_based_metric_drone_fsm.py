@@ -8,7 +8,7 @@ from smg.comms.mapping import MappingClient
 from smg.joysticks import FutabaT6K
 from smg.relocalisation.poseglobalisers import HeightBasedMonocularPoseGlobaliser
 from smg.rotory.drones import Drone
-from smg.utility import ImageUtil, RGBDSequenceUtil
+from smg.utility import ImageUtil, SequenceUtil
 
 
 class HeightBasedMetricDroneFSM:
@@ -200,7 +200,7 @@ class HeightBasedMetricDroneFSM:
 
             # If an output directory was specified and we're saving frames, save the frame to disk.
             if self.__output_dir is not None and self.__save_frames:
-                RGBDSequenceUtil.save_frame(
+                SequenceUtil.save_rgbd_frame(
                     self.__frame_idx, self.__output_dir, image, dummy_depth_image, self.__tracker_w_t_c,
                     colour_intrinsics=intrinsics, depth_intrinsics=intrinsics
                 )
