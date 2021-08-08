@@ -25,6 +25,7 @@ from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
 from smg.rigging.helpers import CameraPoseConverter
 from smg.skeletons import Skeleton3D, SkeletonRenderer, SkeletonUtil
+from smg.smplx import SMPLBody
 from smg.utility import GeometryUtil, SequenceUtil
 
 from ..selectors.bone_selector import BoneSelector
@@ -56,6 +57,7 @@ class MVDepthOctomapMappingSystem:
         :param use_received_depth:  Whether to use depth images received from the client instead of estimating depth.
         :param window_size:         The size of window to use.
         """
+        self.__body: Optional[SMPLBody] = None
         self.__camera_mode: str = camera_mode
         self.__client_id: int = 0
         self.__depth_estimator: MonocularDepthEstimator = depth_estimator
@@ -148,6 +150,12 @@ class MVDepthOctomapMappingSystem:
             self.__skeleton_detection_thread = threading.Thread(target=self.__run_skeleton_detection)
             self.__skeleton_detection_thread.start()
 
+            self.__body = SMPLBody(
+                "male",
+                texture_coords_filename="D:/smplx/textures/smpl/texture_coords.npy",
+                texture_image_filename="D:/smplx/textures/smpl/surreal/nongrey_male_0170.jpg"
+            )
+
         # Until the mapping system should terminate:
         while not self.__should_terminate.is_set():
             # Process any PyGame events.
@@ -232,6 +240,7 @@ class MVDepthOctomapMappingSystem:
                             with SkeletonRenderer.default_lighting_context():
                                 for skeleton in self.__skeletons:
                                     SkeletonRenderer.render_skeleton(skeleton)
+                                    self.__body.render_from_skeleton(skeleton)
 
                             # Draw any 3D scene point that the user selected.
                             if selected_point is not None:
@@ -343,14 +352,15 @@ class MVDepthOctomapMappingSystem:
                 end = timer()
                 print(f"  - Depth Estimation Time: {end - start}s")
 
+                # Get the people mask associated with any skeletons that we were detecting.
+                if self.__detect_skeletons:
+                    skeletons, people_mask = skeleton_detector.end_detection()
+                    print(f"{receiver.get_frame_index()}: {skeletons}")
+                else:
+                    people_mask: Optional[np.ndarray] = None
+
                 # If a depth image was successfully estimated:
                 if estimated_depth_image is not None:
-                    # Get the people mask associated with any skeletons that we were detecting.
-                    if self.__detect_skeletons:
-                        _, people_mask = skeleton_detector.end_detection()
-                    else:
-                        people_mask: Optional[np.ndarray] = None
-
                     # Remove any detected people from the depth image.
                     depopulated_depth_image: np.ndarray = estimated_depth_image.copy()
                     if people_mask is not None:
