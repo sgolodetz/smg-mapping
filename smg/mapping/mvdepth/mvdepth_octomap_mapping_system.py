@@ -39,8 +39,8 @@ class MVDepthOctomapMappingSystem:
     def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
                  camera_mode: str = "free", detect_objects: bool = False, detect_skeletons: bool = False,
                  output_dir: Optional[str] = None, postprocess_depth: bool = True, save_frames: bool = False,
-                 save_reconstruction: bool = False, use_arm_selection: bool = False, use_received_depth: bool = False,
-                 window_size: Tuple[int, int] = (640, 480)):
+                 save_skeletons: bool = False, save_reconstruction: bool = False, use_arm_selection: bool = False,
+                 use_received_depth: bool = False, window_size: Tuple[int, int] = (640, 480)):
         """
         Construct a mapping system that estimates depths using MVDepthNet and reconstructs an Octomap.
 
@@ -52,6 +52,7 @@ class MVDepthOctomapMappingSystem:
         :param output_dir:          An optional directory into which to save output files.
         :param postprocess_depth:   Whether to post-process the depth images.
         :param save_frames:         Whether to save the sequence of frames used to reconstruct the Octomap.
+        :param save_skeletons:      Whether to save the skeletons detected in each frame.
         :param save_reconstruction: Whether to save the reconstructed Octomap.
         :param use_arm_selection:   Whether to allow the user to select 3D points in the scene using their arm.
         :param use_received_depth:  Whether to use depth images received from the client instead of estimating depth.
@@ -66,6 +67,7 @@ class MVDepthOctomapMappingSystem:
         self.__output_dir: Optional[str] = output_dir
         self.__postprocess_depth: bool = postprocess_depth
         self.__save_frames: bool = save_frames
+        self.__save_skeletons: bool = save_skeletons
         self.__save_reconstruction: bool = save_reconstruction
         self.__server: MappingServer = server
         self.__should_terminate: threading.Event = threading.Event()
@@ -355,7 +357,13 @@ class MVDepthOctomapMappingSystem:
                 # Get the people mask associated with any skeletons that we were detecting.
                 if self.__detect_skeletons:
                     skeletons, people_mask = skeleton_detector.end_detection()
-                    print(f"{receiver.get_frame_index()}: {skeletons}")
+                    receiver_frame_idx: int = receiver.get_frame_index()
+                    print(f"{receiver_frame_idx}: {skeletons}")
+                    if self.__output_dir is not None and self.__save_skeletons:
+                        os.makedirs(self.__output_dir, exist_ok=True)
+                        skeletons_filename: str = os.path.join(self.__output_dir, f"{receiver_frame_idx}.skeletons.txt")
+                        with open(skeletons_filename, "w") as f:
+                            f.write(repr(skeletons))
                 else:
                     people_mask: Optional[np.ndarray] = None
 
