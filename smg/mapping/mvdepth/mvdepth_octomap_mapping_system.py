@@ -284,7 +284,7 @@ class MVDepthOctomapMappingSystem:
         # Construct the octree.
         voxel_size: float = 0.05
         self.__octree = OcTree(voxel_size)
-        self.__octree.set_occupancy_thres(0.8)
+        self.__octree.set_occupancy_thres(0.7)
 
         # Until termination is requested:
         while not self.__should_terminate.is_set():
