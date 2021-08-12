@@ -345,17 +345,27 @@ class MVDepthOctomapMappingSystem:
                 end = timer()
                 print(f"  - Depth Estimation Time: {end - start}s")
 
-                # Get the people mask associated with any skeletons that we were detecting.
+                # If we're detecting skeletons:
                 if self.__detect_skeletons:
+                    # Get the skeletons that we asked the detector for, together with their associated people mask.
                     skeletons, people_mask = skeleton_detector.end_detection()
-                    receiver_frame_idx: int = receiver.get_frame_index()
-                    print(f"{receiver_frame_idx}: {skeletons}")
+
+                    # If an output directory has been specified and we're saving the detected skeletons:
                     if self.__output_dir is not None and self.__save_skeletons:
+                        # Make sure the output directory exists.
                         os.makedirs(self.__output_dir, exist_ok=True)
-                        skeletons_filename: str = os.path.join(self.__output_dir, f"{receiver_frame_idx}.skeletons.txt")
-                        with open(skeletons_filename, "w") as f:
-                            f.write(repr(skeletons))
+
+                        # Save the detected skeletons into a file in the output directory. Note that we use the
+                        # frame index obtained from the mapping client to determine the filename, as the reason
+                        # we're saving the skeletons is to compare them with the ground truth ones. This is made
+                        # easier if the frame numbers used are the same as the ground truth ones.
+                        SkeletonUtil.save_skeletons(
+                            os.path.join(self.__output_dir, f"{receiver.get_frame_index()}.skeletons.txt"), skeletons
+                        )
+
+                # Otherwise:
                 else:
+                    # Set the people mask to None, which will cause the subsequent depopulation step to be a no-op.
                     people_mask: Optional[np.ndarray] = None
 
                 # If a depth image was successfully estimated:
