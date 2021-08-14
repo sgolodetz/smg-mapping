@@ -38,8 +38,8 @@ class MVDepthOctomapMappingSystem:
     def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
                  camera_mode: str = "free", detect_objects: bool = False, detect_skeletons: bool = False,
                  output_dir: Optional[str] = None, postprocess_depth: bool = True, save_frames: bool = False,
-                 save_reconstruction: bool = False, use_arm_selection: bool = False, use_received_depth: bool = False,
-                 window_size: Tuple[int, int] = (640, 480)):
+                 save_reconstruction: bool = False, save_skeletons: bool = False, use_arm_selection: bool = False,
+                 use_received_depth: bool = False, window_size: Tuple[int, int] = (640, 480)):
         """
         Construct a mapping system that estimates depths using MVDepthNet and reconstructs an Octomap.
 
@@ -52,6 +52,7 @@ class MVDepthOctomapMappingSystem:
         :param postprocess_depth:   Whether to post-process the depth images.
         :param save_frames:         Whether to save the sequence of frames used to reconstruct the Octomap.
         :param save_reconstruction: Whether to save the reconstructed Octomap.
+        :param save_skeletons:      Whether to save the skeletons detected in each frame.
         :param use_arm_selection:   Whether to allow the user to select 3D points in the scene using their arm.
         :param use_received_depth:  Whether to use depth images received from the client instead of estimating depth.
         :param window_size:         The size of window to use.
@@ -65,6 +66,7 @@ class MVDepthOctomapMappingSystem:
         self.__postprocess_depth: bool = postprocess_depth
         self.__save_frames: bool = save_frames
         self.__save_reconstruction: bool = save_reconstruction
+        self.__save_skeletons: bool = save_skeletons
         self.__server: MappingServer = server
         self.__should_terminate: threading.Event = threading.Event()
         self.__use_arm_selection: bool = use_arm_selection
@@ -275,7 +277,7 @@ class MVDepthOctomapMappingSystem:
         # Construct the octree.
         voxel_size: float = 0.05
         self.__octree = OcTree(voxel_size)
-        self.__octree.set_occupancy_thres(0.8)
+        self.__octree.set_occupancy_thres(0.7)
 
         # Until termination is requested:
         while not self.__should_terminate.is_set():
@@ -343,14 +345,31 @@ class MVDepthOctomapMappingSystem:
                 end = timer()
                 print(f"  - Depth Estimation Time: {end - start}s")
 
+                # If we're detecting skeletons:
+                if self.__detect_skeletons:
+                    # Get the skeletons that we asked the detector for, together with their associated people mask.
+                    skeletons, people_mask = skeleton_detector.end_detection()
+
+                    # If an output directory has been specified and we're saving the detected skeletons:
+                    if self.__output_dir is not None and self.__save_skeletons:
+                        # Make sure the output directory exists.
+                        os.makedirs(self.__output_dir, exist_ok=True)
+
+                        # Save the detected skeletons into a file in the output directory. Note that we use the
+                        # frame index obtained from the mapping client to determine the filename, as the reason
+                        # we're saving the skeletons is to compare them with the ground truth ones. This is made
+                        # easier if the frame numbers used are the same as the ground truth ones.
+                        SkeletonUtil.save_skeletons(
+                            os.path.join(self.__output_dir, f"{receiver.get_frame_index()}.skeletons.txt"), skeletons
+                        )
+
+                # Otherwise:
+                else:
+                    # Set the people mask to None, which will cause the subsequent depopulation step to be a no-op.
+                    people_mask: Optional[np.ndarray] = None
+
                 # If a depth image was successfully estimated:
                 if estimated_depth_image is not None:
-                    # Get the people mask associated with any skeletons that we were detecting.
-                    if self.__detect_skeletons:
-                        _, people_mask = skeleton_detector.end_detection()
-                    else:
-                        people_mask: Optional[np.ndarray] = None
-
                     # Remove any detected people from the depth image.
                     depopulated_depth_image: np.ndarray = estimated_depth_image.copy()
                     if people_mask is not None:
