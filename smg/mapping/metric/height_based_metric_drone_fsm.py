@@ -197,8 +197,6 @@ class HeightBasedMetricDroneFSM:
 
             # If we're reconstructing a map:
             if self.__mapping_client is not None:
-                print(f"Image Timestamp: {image_timestamp}")
-
                 # Send the current frame across to the mapping server.
                 self.__mapping_client.send_frame_message(lambda msg: RGBDFrameMessageUtil.fill_frame_message(
                     self.__frame_idx, image, ImageUtil.to_short_depth(dummy_depth_image), self.__tracker_w_t_c, msg,
