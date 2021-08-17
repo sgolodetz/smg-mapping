@@ -88,13 +88,15 @@ class HeightBasedMetricDroneFSM:
         """
         return self.__tracker_w_t_c
 
-    def iterate(self, image: np.ndarray, intrinsics: Tuple[float, float, float, float],
+    def iterate(self, image: np.ndarray, image_timestamp: Optional[float],
+                intrinsics: Tuple[float, float, float, float],
                 tracker_c_t_i: Optional[np.ndarray], height: float,
                 takeoff_requested: bool, landing_requested: bool) -> None:
         """
         Run an iteration of the state machine.
 
         :param image:               The most recent image from the drone.
+        :param image_timestamp:     The timestamp of the most recent image from the drone (if known).
         :param intrinsics:          The intrinsics of the drone's camera.
         :param tracker_c_t_i:       A non-metric transformation from initial camera space to current camera space,
                                     as estimated by the tracker.
@@ -147,7 +149,7 @@ class HeightBasedMetricDroneFSM:
         elif self.__state == HeightBasedMetricDroneFSM.DS_TRAINING:
             self.__iterate_training(tracker_i_t_c, height)
         elif self.__state == HeightBasedMetricDroneFSM.DS_METRIC:
-            self.__iterate_metric(image, intrinsics, tracker_i_t_c, height)
+            self.__iterate_metric(image, image_timestamp, intrinsics, tracker_i_t_c, height)
 
         # Record the current setting of the throttle for later, so we can detect throttle up/down events that occur.
         self.__throttle_prev = throttle
@@ -168,7 +170,8 @@ class HeightBasedMetricDroneFSM:
 
     # PRIVATE METHODS
 
-    def __iterate_metric(self, image: np.ndarray, intrinsics: Tuple[float, float, float, float],
+    def __iterate_metric(self, image: np.ndarray, image_timestamp: Optional[float],
+                         intrinsics: Tuple[float, float, float, float],
                          tracker_i_t_c: Optional[np.ndarray], height: Optional[float]) -> None:
         """
         Run an iteration of the 'metric' state.
@@ -178,6 +181,7 @@ class HeightBasedMetricDroneFSM:
             this state. On entering this state, the throttle will be down.
 
         :param image:           The most recent image from the drone.
+        :param image_timestamp: The timestamp of the most recent image from the drone (if known).
         :param intrinsics:      The drone's camera intrinsics.
         :param tracker_i_t_c:   A non-metric transformation from current camera space to initial camera space,
                                 as estimated by the tracker.
@@ -195,7 +199,8 @@ class HeightBasedMetricDroneFSM:
             if self.__mapping_client is not None:
                 # Send the current frame across to the mapping server.
                 self.__mapping_client.send_frame_message(lambda msg: RGBDFrameMessageUtil.fill_frame_message(
-                    self.__frame_idx, image, ImageUtil.to_short_depth(dummy_depth_image), self.__tracker_w_t_c, msg
+                    self.__frame_idx, image, ImageUtil.to_short_depth(dummy_depth_image), self.__tracker_w_t_c, msg,
+                    frame_timestamp=image_timestamp
                 ))
 
             # If an output directory was specified and we're saving frames, save the frame to disk.
