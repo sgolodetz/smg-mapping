@@ -397,22 +397,25 @@ class MVDepthOctomapMappingSystem:
                         sensor_origin: Vector3 = Vector3(*mapping_w_t_c[0:3, 3])
                         self.__octree.insert_point_cloud(pcd, sensor_origin, discretize=True)
 
-                        from smg.open3d import ReconstructionUtil
-                        from smg.utility import ImageUtil
+                    from smg.open3d import ReconstructionUtil
+                    from smg.utility import ImageUtil
 
-                        fx, fy, cx, cy = intrinsics
-                        o3d_intrinsics: o3d.camera.PinholeCameraIntrinsic = o3d.camera.PinholeCameraIntrinsic(
-                            width, height, fx, fy, cx, cy
-                        )
-                        ReconstructionUtil.integrate_frame(
-                            ImageUtil.flip_channels(colour_image), estimated_depth_image, np.linalg.inv(mapping_w_t_c),
-                            o3d_intrinsics, self.__tsdf
-                        )
+                    fx, fy, cx, cy = intrinsics
+                    o3d_intrinsics: o3d.camera.PinholeCameraIntrinsic = o3d.camera.PinholeCameraIntrinsic(
+                        width, height, fx, fy, cx, cy
+                    )
+                    ReconstructionUtil.integrate_frame(
+                        ImageUtil.flip_channels(colour_image), estimated_depth_image, np.linalg.inv(mapping_w_t_c),
+                        o3d_intrinsics, self.__tsdf
+                    )
 
-                        o3d_mesh: o3d.geometry.TriangleMesh = ReconstructionUtil.make_mesh(self.__tsdf)
+                    o3d_mesh: o3d.geometry.TriangleMesh = ReconstructionUtil.make_mesh(self.__tsdf)
 
-                        from smg.meshing import MeshUtil
-                        self.__mesh = MeshUtil.convert_trimesh_to_opengl(o3d_mesh)
+                    from smg.meshing import MeshUtil
+                    mesh: OpenGLTriMesh = MeshUtil.convert_trimesh_to_opengl(o3d_mesh)
+
+                    with self.__scene_lock:
+                        self.__mesh = mesh
 
                     end = timer()
                     print(f"  - Fusion Time: {end - start}s")
