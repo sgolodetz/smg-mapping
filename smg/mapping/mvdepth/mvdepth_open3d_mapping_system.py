@@ -281,6 +281,9 @@ class MVDepthOpen3DMappingSystem:
 
                     # If a depth image was successfully estimated, post-process it if appropriate.
                     if estimated_depth_image is not None and self.__postprocess_depth:
+                        estimated_depth_image = cv2.resize(
+                            estimated_depth_image, (width, height), interpolation=cv2.INTER_NEAREST
+                        )
                         estimated_depth_image = MonocularDepthEstimator.postprocess_depth_image(estimated_depth_image)
 
                 end = timer()
@@ -290,19 +293,19 @@ class MVDepthOpen3DMappingSystem:
                 if estimated_depth_image is not None:
                     # If we're debugging, show the depth image that is to be fused into the TSDF.
                     if self.__debug:
-                        cv2.imshow("Post-processed Depth Image", estimated_depth_image / 2)
+                        cv2.imshow("Post-processed Depth Image", estimated_depth_image / 5)
                         cv2.waitKey(1)
 
                     # Fuse the frame into the TSDF.
                     start = timer()
 
-                    fx, fy, cx, cy = GeometryUtil.intrinsics_to_tuple(self.__depth_estimator.get_output_intrinsics())
-                    output_height, output_width = estimated_depth_image.shape[:2]
+                    fx, fy, cx, cy = intrinsics  # GeometryUtil.intrinsics_to_tuple(self.__depth_estimator.get_output_intrinsics())
+                    # output_height, output_width = estimated_depth_image.shape[:2]
                     o3d_intrinsics: o3d.camera.PinholeCameraIntrinsic = o3d.camera.PinholeCameraIntrinsic(
-                        output_width, output_height, fx, fy, cx, cy
+                        width, height, fx, fy, cx, cy
                     )
                     ReconstructionUtil.integrate_frame(
-                        ImageUtil.flip_channels(estimated_colour_image), estimated_depth_image,
+                        ImageUtil.flip_channels(colour_image), estimated_depth_image,
                         np.linalg.inv(mapping_w_t_c), o3d_intrinsics, self.__tsdf
                     )
 
