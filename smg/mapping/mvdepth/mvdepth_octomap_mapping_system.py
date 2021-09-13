@@ -18,7 +18,7 @@ from smg.comms.base import RGBDFrameReceiver
 from smg.comms.mapping import MappingServer
 from smg.comms.skeletons import RemoteSkeletonDetector
 from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
-from smg.mvdepthnet import MonocularDepthEstimator
+from smg.dvmvs import MonocularDepthEstimator
 from smg.opengl import OpenGLMatrixContext, OpenGLUtil
 from smg.pyoctomap import CM_COLOR_HEIGHT, OctomapPicker, OctomapUtil, OcTree, OcTreeDrawer, Pointcloud, Vector3
 from smg.rigging.cameras import SimpleCamera
@@ -293,7 +293,7 @@ class MVDepthOctomapMappingSystem:
                     self.__intrinsics = intrinsics
 
                 # Pass the camera intrinsics to the depth estimator.
-                self.__depth_estimator.set_intrinsics(GeometryUtil.intrinsics_to_matrix(intrinsics))
+                self.__depth_estimator.set_input_intrinsics(GeometryUtil.intrinsics_to_matrix(intrinsics))
 
                 # Get the frame from the server.
                 self.__server.get_frame(self.__client_id, receiver)
@@ -336,10 +336,13 @@ class MVDepthOctomapMappingSystem:
                 # Otherwise:
                 else:
                     # Estimate a depth image using the monocular depth estimator.
-                    estimated_depth_image = self.__depth_estimator.estimate_depth(colour_image, mapping_w_t_c)
+                    estimated_depth_image, _ = self.__depth_estimator.estimate_depth(colour_image, mapping_w_t_c)
 
                     # If a depth image was successfully estimated, post-process it if appropriate.
                     if estimated_depth_image is not None and self.__postprocess_depth:
+                        estimated_depth_image = cv2.resize(
+                            estimated_depth_image, (width, height), interpolation=cv2.INTER_NEAREST
+                        )
                         estimated_depth_image = MonocularDepthEstimator.postprocess_depth_image(estimated_depth_image)
 
                 end = timer()
