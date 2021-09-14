@@ -17,8 +17,8 @@ from smg.relocalisation import ArUcoPnPRelocaliser
 from smg.utility import GeometryUtil, ImageUtil, MonocularDepthEstimator, SequenceUtil
 
 
-class MVDepthOpen3DMappingSystem:
-    """A mapping system that estimates depths using MVDepthNet and reconstructs an Open3D TSDF."""
+class MonocularOpen3DMappingSystem:
+    """A mapping system that uses a monocular depth estimator and reconstructs an Open3D TSDF."""
 
     # CONSTRUCTOR
 
@@ -27,7 +27,7 @@ class MVDepthOpen3DMappingSystem:
                  detect_objects: bool = False, output_dir: Optional[str] = None, postprocess_depth: bool = True,
                  save_frames: bool = False, use_received_depth: bool = False):
         """
-        Construct a mapping system that estimates depths using MVDepthNet and reconstructs an Open3D TSDF.
+        Construct a mapping system that uses a monocular depth estimator and reconstructs an Open3D TSDF.
 
         :param server:              The mapping server.
         :param depth_estimator:     The monocular depth estimator.
@@ -124,7 +124,7 @@ class MVDepthOpen3DMappingSystem:
             # If we've ever seen a frame:
             if newest_colour_image is not None:
                 # Show the most recent colour image.
-                cv2.imshow("MVDepth -> Open3D Server", newest_colour_image)
+                cv2.imshow("Monocular Open3D Mapping Server", newest_colour_image)
                 c: int = cv2.waitKey(1)
 
                 # If the user presses 'v', exit.
