@@ -12,11 +12,9 @@ from typing import List, Optional, Tuple
 from smg.comms.base import RGBDFrameReceiver
 from smg.comms.mapping import MappingServer
 from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
-from smg.dvmvs import MonocularDepthEstimator
-# from smg.mvdepthnet import MonocularDepthEstimator
 from smg.open3d import ReconstructionUtil
 from smg.relocalisation import ArUcoPnPRelocaliser
-from smg.utility import GeometryUtil, ImageUtil, SequenceUtil
+from smg.utility import GeometryUtil, ImageUtil, MonocularDepthEstimator, SequenceUtil
 
 
 class MVDepthOpen3DMappingSystem:

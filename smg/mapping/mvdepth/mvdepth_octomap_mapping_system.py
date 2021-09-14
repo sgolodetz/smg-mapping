@@ -18,14 +18,13 @@ from smg.comms.base import RGBDFrameReceiver
 from smg.comms.mapping import MappingServer
 from smg.comms.skeletons import RemoteSkeletonDetector
 from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
-from smg.dvmvs import MonocularDepthEstimator
 from smg.opengl import OpenGLMatrixContext, OpenGLUtil
 from smg.pyoctomap import CM_COLOR_HEIGHT, OctomapPicker, OctomapUtil, OcTree, OcTreeDrawer, Pointcloud, Vector3
 from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
 from smg.rigging.helpers import CameraPoseConverter
 from smg.skeletons import Skeleton3D, SkeletonRenderer, SkeletonUtil
-from smg.utility import GeometryUtil, SequenceUtil
+from smg.utility import GeometryUtil, MonocularDepthEstimator, SequenceUtil
 
 from ..selectors.bone_selector import BoneSelector
 
