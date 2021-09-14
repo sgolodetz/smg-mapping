@@ -232,7 +232,7 @@ class MVDepthOpen3DMappingSystem:
                     self.__intrinsics = intrinsics
 
                 # Pass the camera intrinsics to the depth estimator.
-                self.__depth_estimator.set_input_intrinsics(GeometryUtil.intrinsics_to_matrix(intrinsics))
+                self.__depth_estimator.set_intrinsics(GeometryUtil.intrinsics_to_matrix(intrinsics))
 
                 # Get the frame from the server.
                 self.__server.get_frame(self.__client_id, receiver)
@@ -263,7 +263,6 @@ class MVDepthOpen3DMappingSystem:
 
                 # noinspection PyUnusedLocal
                 estimated_depth_image: Optional[np.ndarray] = None
-                estimated_colour_image: Optional[np.ndarray] = None
 
                 # If requested, use the depth image received from the (presumably RGB-D) client.
                 if self.__use_received_depth:
@@ -275,15 +274,10 @@ class MVDepthOpen3DMappingSystem:
                 # Otherwise:
                 else:
                     # Estimate a depth image using the monocular depth estimator.
-                    estimated_depth_image, estimated_colour_image = self.__depth_estimator.estimate_depth(
-                        colour_image, mapping_w_t_c
-                    )
+                    estimated_depth_image = self.__depth_estimator.estimate_depth(colour_image, mapping_w_t_c)
 
                     # If a depth image was successfully estimated, post-process it if appropriate.
                     if estimated_depth_image is not None and self.__postprocess_depth:
-                        estimated_depth_image = cv2.resize(
-                            estimated_depth_image, (width, height), interpolation=cv2.INTER_NEAREST
-                        )
                         estimated_depth_image = MonocularDepthEstimator.postprocess_depth_image(estimated_depth_image)
 
                 end = timer()
@@ -299,14 +293,13 @@ class MVDepthOpen3DMappingSystem:
                     # Fuse the frame into the TSDF.
                     start = timer()
 
-                    fx, fy, cx, cy = intrinsics  # GeometryUtil.intrinsics_to_tuple(self.__depth_estimator.get_output_intrinsics())
-                    # output_height, output_width = estimated_depth_image.shape[:2]
+                    fx, fy, cx, cy = intrinsics
                     o3d_intrinsics: o3d.camera.PinholeCameraIntrinsic = o3d.camera.PinholeCameraIntrinsic(
                         width, height, fx, fy, cx, cy
                     )
                     ReconstructionUtil.integrate_frame(
-                        ImageUtil.flip_channels(colour_image), estimated_depth_image,
-                        np.linalg.inv(mapping_w_t_c), o3d_intrinsics, self.__tsdf
+                        ImageUtil.flip_channels(colour_image), estimated_depth_image, np.linalg.inv(mapping_w_t_c),
+                        o3d_intrinsics, self.__tsdf
                     )
 
                     end = timer()
