@@ -340,7 +340,7 @@ class MVDepthOctomapMappingSystem:
 
                     # If a depth image was successfully estimated, post-process it if appropriate.
                     if estimated_depth_image is not None and self.__postprocess_depth:
-                        estimated_depth_image = MonocularDepthEstimator.postprocess_depth_image(estimated_depth_image)
+                        estimated_depth_image = self.__depth_estimator.postprocess_depth_image(estimated_depth_image)
 
                 end = timer()
                 print(f"  - Depth Estimation Time: {end - start}s")
