@@ -1,2 +1,2 @@
-from .monocular_octomap_mapping_system import MonocularOctomapMappingSystem
-from .monocular_open3d_mapping_system import MonocularOpen3DMappingSystem
+from .octomap_mapping_system import OctomapMappingSystem
+from .open3d_mapping_system import Open3DMappingSystem

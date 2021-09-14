@@ -29,8 +29,8 @@ from smg.utility import GeometryUtil, MonocularDepthEstimator, SequenceUtil
 from ..selectors.bone_selector import BoneSelector
 
 
-class MonocularOctomapMappingSystem:
-    """A mapping system that uses a monocular depth estimator and reconstructs an Octomap."""
+class OctomapMappingSystem:
+    """A mapping system that reconstructs an Octomap."""
 
     # CONSTRUCTOR
 
@@ -40,7 +40,7 @@ class MonocularOctomapMappingSystem:
                  save_reconstruction: bool = False, save_skeletons: bool = False, use_arm_selection: bool = False,
                  use_received_depth: bool = False, window_size: Tuple[int, int] = (640, 480)):
         """
-        Construct a mapping system that uses a monocular depth estimator and reconstructs an Octomap.
+        Construct a mapping system that reconstructs an Octomap.
 
         :param server:              The mapping server.
         :param depth_estimator:     The monocular depth estimator.
@@ -120,7 +120,7 @@ class MonocularOctomapMappingSystem:
         # Initialise PyGame and create the window.
         pygame.init()
         pygame.display.set_mode(self.__window_size, pygame.DOUBLEBUF | pygame.OPENGL)
-        pygame.display.set_caption("Monocular Octomap Mapping Server")
+        pygame.display.set_caption("Octomap Mapping Server")
 
         # Enable the z-buffer.
         glEnable(GL_DEPTH_TEST)
