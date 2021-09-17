@@ -67,7 +67,7 @@ class Open3DMappingSystem:
         self.__instance_segmentation: Optional[np.ndarray] = None
         self.__objects: List[ObjectDetector3D.Object3D] = []
         self.__tsdf: o3d.pipelines.integration.ScalableTSDFVolume = o3d.pipelines.integration.ScalableTSDFVolume(
-            voxel_length=0.025,
+            voxel_length=0.01,
             sdf_trunc=0.1,
             color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8
         )
@@ -216,6 +216,9 @@ class Open3DMappingSystem:
         frame_idx: int = 0
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
 
+        previous_depth_image: Optional[np.ndarray] = None
+        previous_w_t_c: Optional[np.ndarray] = None
+
         # Until termination is requested:
         while not self.__should_terminate.is_set():
             # If the server has a frame from the client that has not yet been processed:
@@ -288,6 +291,36 @@ class Open3DMappingSystem:
                         cv2.imshow("Post-processed Depth Image", estimated_depth_image / 5)
                         cv2.waitKey(1)
 
+                    if previous_depth_image is not None:
+                        selection_image: np.ndarray = GeometryUtil.find_reprojection_correspondences(
+                            estimated_depth_image, mapping_w_t_c, previous_w_t_c, intrinsics
+                        )
+                        warped_depth_image: np.ndarray = GeometryUtil.select_pixels_from(
+                            previous_depth_image, selection_image
+                        )
+                        warped_depth_image = np.where(estimated_depth_image > 0.0, warped_depth_image, 0.0)
+                        cv2.imshow("Warped Depth Image", warped_depth_image / 5)
+                        diff_image: np.ndarray = np.fabs(warped_depth_image - estimated_depth_image)
+                        cv2.imshow("Difference Image", diff_image)
+                        avg_depth_image: np.ndarray = estimated_depth_image.copy()  # (estimated_depth_image + warped_depth_image) / 2
+                        better_depth_image: np.ndarray = np.where(warped_depth_image > 0.0, avg_depth_image, 0.0)
+                        better_depth_image = np.where(diff_image <= 0.2, better_depth_image, 0.0)
+                        better_depth_image = self.__depth_estimator.postprocess_depth_image(better_depth_image)
+
+                        previous_depth_image = estimated_depth_image.copy()
+                        previous_w_t_c = mapping_w_t_c.copy()
+
+                        if better_depth_image is not None:
+                            cv2.imshow("Better Depth Image", better_depth_image / 5)
+                            cv2.waitKey(1)
+                        else:
+                            cv2.waitKey(1)
+                            continue
+                    else:
+                        previous_depth_image = estimated_depth_image.copy()
+                        previous_w_t_c = mapping_w_t_c.copy()
+                        continue
+
                     # Fuse the frame into the TSDF.
                     start = timer()
 
@@ -296,7 +329,7 @@ class Open3DMappingSystem:
                         width, height, fx, fy, cx, cy
                     )
                     ReconstructionUtil.integrate_frame(
-                        ImageUtil.flip_channels(colour_image), estimated_depth_image, np.linalg.inv(mapping_w_t_c),
+                        ImageUtil.flip_channels(colour_image), better_depth_image, np.linalg.inv(mapping_w_t_c),
                         o3d_intrinsics, self.__tsdf
                     )
 
