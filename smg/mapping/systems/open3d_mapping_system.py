@@ -216,9 +216,6 @@ class Open3DMappingSystem:
         frame_idx: int = 0
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
 
-        previous_depth_image: Optional[np.ndarray] = None
-        previous_w_t_c: Optional[np.ndarray] = None
-
         # Until termination is requested:
         while not self.__should_terminate.is_set():
             # If the server has a frame from the client that has not yet been processed:
@@ -280,22 +277,6 @@ class Open3DMappingSystem:
                     # If a depth image was successfully estimated, post-process it if appropriate.
                     if estimated_depth_image is not None and self.__postprocess_depth:
                         estimated_depth_image = self.__depth_estimator.postprocess_depth_image(estimated_depth_image)
-
-                        # FIXME
-                        if previous_depth_image is not None and previous_w_t_c is not None:
-                            from smg.utility import DepthImageProcessor
-                            filtered_depth_image: np.ndarray = DepthImageProcessor.apply_temporal_filter(
-                                estimated_depth_image, mapping_w_t_c,
-                                previous_depth_image, previous_w_t_c,
-                                intrinsics, debug=True
-                            )
-                            previous_depth_image = estimated_depth_image.copy()
-                            previous_w_t_c = mapping_w_t_c.copy()
-                            estimated_depth_image = self.__depth_estimator.postprocess_depth_image(filtered_depth_image)
-                        else:
-                            previous_depth_image = estimated_depth_image.copy()
-                            previous_w_t_c = mapping_w_t_c.copy()
-                            estimated_depth_image = None
 
                 end = timer()
                 print(f"  - Depth Estimation Time: {end - start}s")
