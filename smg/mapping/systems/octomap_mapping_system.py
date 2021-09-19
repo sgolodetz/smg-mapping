@@ -18,20 +18,19 @@ from smg.comms.base import RGBDFrameReceiver
 from smg.comms.mapping import MappingServer
 from smg.comms.skeletons import RemoteSkeletonDetector
 from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
-from smg.mvdepthnet import MonocularDepthEstimator
 from smg.opengl import OpenGLMatrixContext, OpenGLUtil
 from smg.pyoctomap import CM_COLOR_HEIGHT, OctomapPicker, OctomapUtil, OcTree, OcTreeDrawer, Pointcloud, Vector3
 from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
 from smg.rigging.helpers import CameraPoseConverter
 from smg.skeletons import Skeleton3D, SkeletonRenderer, SkeletonUtil
-from smg.utility import GeometryUtil, SequenceUtil
+from smg.utility import GeometryUtil, MonocularDepthEstimator, SequenceUtil
 
 from ..selectors.bone_selector import BoneSelector
 
 
-class MVDepthOctomapMappingSystem:
-    """A mapping system that estimates depths using MVDepthNet and reconstructs an Octomap."""
+class OctomapMappingSystem:
+    """A mapping system that reconstructs an Octomap."""
 
     # CONSTRUCTOR
 
@@ -41,7 +40,7 @@ class MVDepthOctomapMappingSystem:
                  save_reconstruction: bool = False, save_skeletons: bool = False, use_arm_selection: bool = False,
                  use_received_depth: bool = False, window_size: Tuple[int, int] = (640, 480)):
         """
-        Construct a mapping system that estimates depths using MVDepthNet and reconstructs an Octomap.
+        Construct a mapping system that reconstructs an Octomap.
 
         :param server:              The mapping server.
         :param depth_estimator:     The monocular depth estimator.
@@ -121,7 +120,7 @@ class MVDepthOctomapMappingSystem:
         # Initialise PyGame and create the window.
         pygame.init()
         pygame.display.set_mode(self.__window_size, pygame.DOUBLEBUF | pygame.OPENGL)
-        pygame.display.set_caption("MVDepth -> Octomap Server")
+        pygame.display.set_caption("Octomap Mapping Server")
 
         # Enable the z-buffer.
         glEnable(GL_DEPTH_TEST)
@@ -340,7 +339,7 @@ class MVDepthOctomapMappingSystem:
 
                     # If a depth image was successfully estimated, post-process it if appropriate.
                     if estimated_depth_image is not None and self.__postprocess_depth:
-                        estimated_depth_image = MonocularDepthEstimator.postprocess_depth_image(estimated_depth_image)
+                        estimated_depth_image = self.__depth_estimator.postprocess_depth_image(estimated_depth_image)
 
                 end = timer()
                 print(f"  - Depth Estimation Time: {end - start}s")

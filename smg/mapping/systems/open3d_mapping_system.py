@@ -12,14 +12,13 @@ from typing import List, Optional, Tuple
 from smg.comms.base import RGBDFrameReceiver
 from smg.comms.mapping import MappingServer
 from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
-from smg.mvdepthnet import MonocularDepthEstimator
 from smg.open3d import ReconstructionUtil
 from smg.relocalisation import ArUcoPnPRelocaliser
-from smg.utility import GeometryUtil, ImageUtil, SequenceUtil
+from smg.utility import GeometryUtil, ImageUtil, MonocularDepthEstimator, SequenceUtil
 
 
-class MVDepthOpen3DMappingSystem:
-    """A mapping system that estimates depths using MVDepthNet and reconstructs an Open3D TSDF."""
+class Open3DMappingSystem:
+    """A mapping system that reconstructs an Open3D TSDF."""
 
     # CONSTRUCTOR
 
@@ -28,7 +27,7 @@ class MVDepthOpen3DMappingSystem:
                  detect_objects: bool = False, output_dir: Optional[str] = None, postprocess_depth: bool = True,
                  save_frames: bool = False, use_received_depth: bool = False):
         """
-        Construct a mapping system that estimates depths using MVDepthNet and reconstructs an Open3D TSDF.
+        Construct a mapping system that reconstructs an Open3D TSDF.
 
         :param server:              The mapping server.
         :param depth_estimator:     The monocular depth estimator.
@@ -69,7 +68,7 @@ class MVDepthOpen3DMappingSystem:
         self.__objects: List[ObjectDetector3D.Object3D] = []
         self.__tsdf: o3d.pipelines.integration.ScalableTSDFVolume = o3d.pipelines.integration.ScalableTSDFVolume(
             voxel_length=0.01,
-            sdf_trunc=0.04,
+            sdf_trunc=0.1,
             color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8
         )
         self.__scene_lock: threading.Lock = threading.Lock()
@@ -125,7 +124,7 @@ class MVDepthOpen3DMappingSystem:
             # If we've ever seen a frame:
             if newest_colour_image is not None:
                 # Show the most recent colour image.
-                cv2.imshow("MVDepth -> Open3D Server", newest_colour_image)
+                cv2.imshow("Open3D Mapping Server", newest_colour_image)
                 c: int = cv2.waitKey(1)
 
                 # If the user presses 'v', exit.
@@ -277,7 +276,7 @@ class MVDepthOpen3DMappingSystem:
 
                     # If a depth image was successfully estimated, post-process it if appropriate.
                     if estimated_depth_image is not None and self.__postprocess_depth:
-                        estimated_depth_image = MonocularDepthEstimator.postprocess_depth_image(estimated_depth_image)
+                        estimated_depth_image = self.__depth_estimator.postprocess_depth_image(estimated_depth_image)
 
                 end = timer()
                 print(f"  - Depth Estimation Time: {end - start}s")
@@ -286,7 +285,7 @@ class MVDepthOpen3DMappingSystem:
                 if estimated_depth_image is not None:
                     # If we're debugging, show the depth image that is to be fused into the TSDF.
                     if self.__debug:
-                        cv2.imshow("Post-processed Depth Image", estimated_depth_image / 2)
+                        cv2.imshow("Post-processed Depth Image", estimated_depth_image / 5)
                         cv2.waitKey(1)
 
                     # Fuse the frame into the TSDF.
