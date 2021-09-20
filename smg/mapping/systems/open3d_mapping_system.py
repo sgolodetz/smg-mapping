@@ -281,6 +281,11 @@ class Open3DMappingSystem:
 
                 # If a depth image was successfully estimated:
                 if estimated_depth_image is not None:
+                    # If we're debugging, show the depth image that is to be fused into the TSDF.
+                    if self.__debug:
+                        cv2.imshow("Estimated Depth Image", estimated_depth_image / 5)
+                        cv2.waitKey(1)
+
                     # Fuse the frame into the TSDF.
                     start = timer()
 
