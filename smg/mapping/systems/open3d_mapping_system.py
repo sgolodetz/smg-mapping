@@ -272,11 +272,9 @@ class Open3DMappingSystem:
                 # Otherwise:
                 else:
                     # Estimate a depth image using the monocular depth estimator.
-                    estimated_depth_image = self.__depth_estimator.estimate_depth(colour_image, mapping_w_t_c)
-
-                    # If a depth image was successfully estimated, post-process it if appropriate.
-                    if estimated_depth_image is not None and self.__postprocess_depth:
-                        estimated_depth_image = self.__depth_estimator.postprocess_depth_image(estimated_depth_image)
+                    estimated_depth_image = self.__depth_estimator.estimate_depth(
+                        colour_image, mapping_w_t_c, postprocess=self.__postprocess_depth
+                    )
 
                 end = timer()
                 print(f"  - Depth Estimation Time: {end - start}s")
@@ -285,7 +283,7 @@ class Open3DMappingSystem:
                 if estimated_depth_image is not None:
                     # If we're debugging, show the depth image that is to be fused into the TSDF.
                     if self.__debug:
-                        cv2.imshow("Post-processed Depth Image", estimated_depth_image / 5)
+                        cv2.imshow("Estimated Depth Image", estimated_depth_image / 5)
                         cv2.waitKey(1)
 
                     # Fuse the frame into the TSDF.
