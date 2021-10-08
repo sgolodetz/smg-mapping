@@ -87,6 +87,7 @@ class OctomapMappingSystem:
         # The most recent instance segmentation, the detected 3D objects and the octree, together with their lock.
         self.__instance_segmentation: Optional[np.ndarray] = None
         self.__mesh: Optional[OpenGLTriMesh] = None
+        self.__mesh_needs_updating: threading.Event = threading.Event()
         self.__objects: List[ObjectDetector3D.Object3D] = []
         self.__octree: Optional[OcTree] = None
         self.__scene_lock: threading.Lock = threading.Lock()
@@ -236,8 +237,18 @@ class OctomapMappingSystem:
 
                         with self.__scene_lock:
                             # Draw the scene.
-                            if self.__visualise_mesh.is_set() and self.__mesh is not None:
-                                self.__mesh.render()
+                            if self.__visualise_mesh.is_set():
+                                if self.__mesh_needs_updating.is_set():
+                                    from smg.open3d import ReconstructionUtil
+                                    o3d_mesh: o3d.geometry.TriangleMesh = ReconstructionUtil.make_mesh(self.__tsdf)
+
+                                    from smg.meshing import MeshUtil
+                                    self.__mesh = MeshUtil.convert_trimesh_to_opengl(o3d_mesh)
+
+                                    self.__mesh_needs_updating.clear()
+
+                                if self.__mesh is not None:
+                                    self.__mesh.render()
                             elif self.__octree is not None:
                                 OctomapUtil.draw_octree(self.__octree, drawer)
 
@@ -401,26 +412,18 @@ class OctomapMappingSystem:
                         sensor_origin: Vector3 = Vector3(*mapping_w_t_c[0:3, 3])
                         self.__octree.insert_point_cloud(pcd, sensor_origin, discretize=True)
 
-                    from smg.open3d import ReconstructionUtil
-                    from smg.utility import ImageUtil
+                        from smg.open3d import ReconstructionUtil
+                        from smg.utility import ImageUtil
 
-                    fx, fy, cx, cy = intrinsics
-                    o3d_intrinsics: o3d.camera.PinholeCameraIntrinsic = o3d.camera.PinholeCameraIntrinsic(
-                        width, height, fx, fy, cx, cy
-                    )
-                    ReconstructionUtil.integrate_frame(
-                        ImageUtil.flip_channels(colour_image), estimated_depth_image, np.linalg.inv(mapping_w_t_c),
-                        o3d_intrinsics, self.__tsdf
-                    )
-
-                    if self.__visualise_mesh.is_set():
-                        o3d_mesh: o3d.geometry.TriangleMesh = ReconstructionUtil.make_mesh(self.__tsdf)
-
-                        from smg.meshing import MeshUtil
-                        mesh: OpenGLTriMesh = MeshUtil.convert_trimesh_to_opengl(o3d_mesh)
-
-                        with self.__scene_lock:
-                            self.__mesh = mesh
+                        fx, fy, cx, cy = intrinsics
+                        o3d_intrinsics: o3d.camera.PinholeCameraIntrinsic = o3d.camera.PinholeCameraIntrinsic(
+                            width, height, fx, fy, cx, cy
+                        )
+                        ReconstructionUtil.integrate_frame(
+                            ImageUtil.flip_channels(colour_image), estimated_depth_image, np.linalg.inv(mapping_w_t_c),
+                            o3d_intrinsics, self.__tsdf
+                        )
+                        self.__mesh_needs_updating.set()
 
                     end = timer()
                     print(f"  - Fusion Time: {end - start}s")
