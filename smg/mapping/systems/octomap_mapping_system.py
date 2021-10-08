@@ -1,5 +1,5 @@
 import cv2
-import detectron2
+# import detectron2
 import numpy as np
 import open3d as o3d
 import os
@@ -10,7 +10,7 @@ import pygame
 import threading
 import time
 
-from detectron2.structures import Instances
+# from detectron2.structures import Instances
 from OpenGL.GL import *
 from timeit import default_timer as timer
 from typing import List, Optional, Tuple
@@ -18,7 +18,7 @@ from typing import List, Optional, Tuple
 from smg.comms.base import RGBDFrameReceiver
 from smg.comms.mapping import MappingServer
 from smg.comms.skeletons import RemoteSkeletonDetector
-from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
+# from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
 from smg.opengl import OpenGLMatrixContext, OpenGLTriMesh, OpenGLUtil
 from smg.pyoctomap import CM_COLOR_HEIGHT, OctomapPicker, OctomapUtil, OcTree, OcTreeDrawer, Pointcloud, Vector3
 from smg.rigging.cameras import SimpleCamera
@@ -96,6 +96,7 @@ class OctomapMappingSystem:
             sdf_trunc=0.04,
             color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8
         )
+        self.__visualise_mesh: threading.Event = threading.Event()
 
         # The threads and conditions.
         self.__mapping_thread: Optional[threading.Thread] = None
@@ -178,8 +179,15 @@ class OctomapMappingSystem:
                     cv2.imshow("Instance Segmentation", self.__instance_segmentation)
                     cv2.waitKey(1)
 
+            pressed_keys = pygame.key.get_pressed()
+
+            if pressed_keys[pygame.K_v]:
+                self.__visualise_mesh.set()
+            else:
+                self.__visualise_mesh.clear()
+
             # Allow the user to control the camera.
-            camera_controller.update(pygame.key.get_pressed(), timer() * 1000)
+            camera_controller.update(pressed_keys, timer() * 1000)
 
             # Clear the colour and depth buffers.
             glClearColor(1.0, 1.0, 1.0, 1.0)
@@ -227,12 +235,11 @@ class OctomapMappingSystem:
                         OpenGLUtil.render_voxel_grid([-3, -2, -3], [3, 0, 3], [1, 1, 1], dotted=True)
 
                         with self.__scene_lock:
-                            # Draw the octree.
-                            # if self.__octree is not None:
-                            #     OctomapUtil.draw_octree(self.__octree, drawer)
-
-                            if self.__mesh is not None:
+                            # Draw the scene.
+                            if self.__visualise_mesh.is_set() and self.__mesh is not None:
                                 self.__mesh.render()
+                            elif self.__octree is not None:
+                                OctomapUtil.draw_octree(self.__octree, drawer)
 
                             # Draw the 3D objects.
                             glColor3f(1.0, 0.0, 1.0)
@@ -406,13 +413,14 @@ class OctomapMappingSystem:
                         o3d_intrinsics, self.__tsdf
                     )
 
-                    o3d_mesh: o3d.geometry.TriangleMesh = ReconstructionUtil.make_mesh(self.__tsdf)
+                    if self.__visualise_mesh.is_set():
+                        o3d_mesh: o3d.geometry.TriangleMesh = ReconstructionUtil.make_mesh(self.__tsdf)
 
-                    from smg.meshing import MeshUtil
-                    mesh: OpenGLTriMesh = MeshUtil.convert_trimesh_to_opengl(o3d_mesh)
+                        from smg.meshing import MeshUtil
+                        mesh: OpenGLTriMesh = MeshUtil.convert_trimesh_to_opengl(o3d_mesh)
 
-                    with self.__scene_lock:
-                        self.__mesh = mesh
+                        with self.__scene_lock:
+                            self.__mesh = mesh
 
                     end = timer()
                     print(f"  - Fusion Time: {end - start}s")
