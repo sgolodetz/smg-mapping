@@ -24,8 +24,9 @@ class Open3DMappingSystem:
 
     def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
                  aruco_relocaliser: Optional[ArUcoPnPRelocaliser] = None, batch_mode: bool = False,
-                 debug: bool = False, detect_objects: bool = False, output_dir: Optional[str] = None,
-                 postprocess_depth: bool = True, save_frames: bool = False, use_received_depth: bool = False):
+                 debug: bool = False, detect_objects: bool = False, max_received_depth: float = 3.0,
+                 output_dir: Optional[str] = None, postprocess_depth: bool = True, save_frames: bool = False,
+                 use_received_depth: bool = False):
         """
         Construct a mapping system that reconstructs an Open3D TSDF.
 
@@ -35,6 +36,8 @@ class Open3DMappingSystem:
         :param batch_mode:          Whether to use batch mode.
         :param debug:               Whether to enable debugging.
         :param detect_objects:      Whether to detect 3D objects.
+        :param max_received_depth:  The maximum depth values to keep when using the received depth (pixels with
+                                    depth values greater than this will have their depths set to zero).
         :param output_dir:          An optional directory into which to save output files.
         :param postprocess_depth:   Whether to post-process the depth images.
         :param save_frames:         Whether to save the sequence of frames used to reconstruct the TSDF.
@@ -47,6 +50,7 @@ class Open3DMappingSystem:
         self.__debug: bool = debug
         self.__depth_estimator: MonocularDepthEstimator = depth_estimator
         self.__detect_objects: bool = detect_objects
+        self.__max_received_depth: float = max_received_depth
         self.__output_dir: Optional[str] = output_dir
         self.__postprocess_depth: bool = postprocess_depth
         self.__save_frames: bool = save_frames
@@ -273,7 +277,9 @@ class Open3DMappingSystem:
                     estimated_depth_image = receiver.get_depth_image()
 
                     # Limit the depth range to 3m (more distant points can be unreliable).
-                    estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
+                    estimated_depth_image = np.where(
+                        estimated_depth_image <= self.__max_received_depth, estimated_depth_image, 0.0
+                    )
 
                 # Otherwise:
                 else:
