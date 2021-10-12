@@ -23,15 +23,16 @@ class Open3DMappingSystem:
     # CONSTRUCTOR
 
     def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
-                 aruco_relocaliser: Optional[ArUcoPnPRelocaliser] = None, debug: bool = False,
-                 detect_objects: bool = False, output_dir: Optional[str] = None, postprocess_depth: bool = True,
-                 save_frames: bool = False, use_received_depth: bool = False):
+                 aruco_relocaliser: Optional[ArUcoPnPRelocaliser] = None, batch_mode: bool = False,
+                 debug: bool = False, detect_objects: bool = False, output_dir: Optional[str] = None,
+                 postprocess_depth: bool = True, save_frames: bool = False, use_received_depth: bool = False):
         """
         Construct a mapping system that reconstructs an Open3D TSDF.
 
         :param server:              The mapping server.
         :param depth_estimator:     The monocular depth estimator.
         :param aruco_relocaliser:   An optional ArUco+PnP relocaliser that can be used to align the map with a marker.
+        :param batch_mode:          Whether to use batch mode.
         :param debug:               Whether to enable debugging.
         :param detect_objects:      Whether to detect 3D objects.
         :param output_dir:          An optional directory into which to save output files.
@@ -41,6 +42,7 @@ class Open3DMappingSystem:
         """
         self.__aruco_from_world_estimates: List[np.ndarray] = []
         self.__aruco_relocaliser: Optional[ArUcoPnPRelocaliser] = aruco_relocaliser
+        self.__batch_mode: bool = batch_mode
         self.__client_id: int = 0
         self.__debug: bool = debug
         self.__depth_estimator: MonocularDepthEstimator = depth_estimator
@@ -116,6 +118,10 @@ class Open3DMappingSystem:
 
         # Until the mapping system should terminate:
         while not self.__should_terminate.is_set():
+            # If we're in batch mode and the server will never receive any more frames from the client, exit.
+            if self.__batch_mode and self.__server.has_finished(self.__client_id):
+                return self.terminate()
+
             # If the server has any frames from the client that have not yet been processed, get the colour image
             # from the most recent one.
             if self.__server.peek_newest_frame(self.__client_id, receiver):
