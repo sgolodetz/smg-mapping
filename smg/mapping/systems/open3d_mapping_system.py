@@ -276,7 +276,7 @@ class Open3DMappingSystem:
                 if self.__use_received_depth:
                     estimated_depth_image = receiver.get_depth_image()
 
-                    # Limit the depth range to 3m (more distant points can be unreliable).
+                    # Limit the depth range (more distant points can be unreliable).
                     estimated_depth_image = np.where(
                         estimated_depth_image <= self.__max_received_depth, estimated_depth_image, 0.0
                     )

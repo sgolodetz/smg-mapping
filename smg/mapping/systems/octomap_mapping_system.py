@@ -19,13 +19,15 @@ from smg.comms.base import RGBDFrameReceiver
 from smg.comms.mapping import MappingServer
 from smg.comms.skeletons import RemoteSkeletonDetector
 # from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
+from smg.meshing import MeshUtil
+from smg.open3d import ReconstructionUtil
 from smg.opengl import OpenGLMatrixContext, OpenGLTriMesh, OpenGLUtil
 from smg.pyoctomap import CM_COLOR_HEIGHT, OctomapPicker, OctomapUtil, OcTree, OcTreeDrawer, Pointcloud, Vector3
 from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
 from smg.rigging.helpers import CameraPoseConverter
 from smg.skeletons import Skeleton3D, SkeletonRenderer, SkeletonUtil
-from smg.utility import GeometryUtil, MonocularDepthEstimator, SequenceUtil
+from smg.utility import GeometryUtil, ImageUtil, MonocularDepthEstimator, SequenceUtil
 
 from ..selectors.bone_selector import BoneSelector
 
@@ -98,7 +100,7 @@ class OctomapMappingSystem:
         self.__skeletons: List[Skeleton3D] = []
         self.__tsdf: o3d.pipelines.integration.ScalableTSDFVolume = o3d.pipelines.integration.ScalableTSDFVolume(
             voxel_length=0.01,
-            sdf_trunc=0.04,
+            sdf_trunc=0.1,
             color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8
         )
         self.__visualise_mesh: threading.Event = threading.Event()
@@ -243,12 +245,8 @@ class OctomapMappingSystem:
                             # Draw the scene.
                             if self.__visualise_mesh.is_set():
                                 if self.__mesh_needs_updating.is_set():
-                                    from smg.open3d import ReconstructionUtil
                                     o3d_mesh: o3d.geometry.TriangleMesh = ReconstructionUtil.make_mesh(self.__tsdf)
-
-                                    from smg.meshing import MeshUtil
                                     self.__mesh = MeshUtil.convert_trimesh_to_opengl(o3d_mesh)
-
                                     self.__mesh_needs_updating.clear()
 
                                 if self.__mesh is not None:
@@ -361,7 +359,7 @@ class OctomapMappingSystem:
                 if self.__use_received_depth:
                     estimated_depth_image = receiver.get_depth_image()
 
-                    # Limit the depth range to 3m (more distant points can be unreliable).
+                    # Limit the depth range (more distant points can be unreliable).
                     estimated_depth_image = np.where(
                         estimated_depth_image <= self.__max_received_depth, estimated_depth_image, 0.0
                     )
@@ -417,9 +415,6 @@ class OctomapMappingSystem:
                     with self.__scene_lock:
                         sensor_origin: Vector3 = Vector3(*mapping_w_t_c[0:3, 3])
                         self.__octree.insert_point_cloud(pcd, sensor_origin, discretize=True)
-
-                        from smg.open3d import ReconstructionUtil
-                        from smg.utility import ImageUtil
 
                         fx, fy, cx, cy = intrinsics
                         o3d_intrinsics: o3d.camera.PinholeCameraIntrinsic = o3d.camera.PinholeCameraIntrinsic(
