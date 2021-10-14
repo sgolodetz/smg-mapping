@@ -1,5 +1,5 @@
 import cv2
-# import detectron2
+import detectron2
 import numpy as np
 import open3d as o3d
 import os
@@ -10,7 +10,7 @@ import pygame
 import threading
 import time
 
-# from detectron2.structures import Instances
+from detectron2.structures import Instances
 from OpenGL.GL import *
 from timeit import default_timer as timer
 from typing import List, Optional, Tuple
@@ -18,7 +18,7 @@ from typing import List, Optional, Tuple
 from smg.comms.base import RGBDFrameReceiver
 from smg.comms.mapping import MappingServer
 from smg.comms.skeletons import RemoteSkeletonDetector
-# from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
+from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
 from smg.meshing import MeshUtil
 from smg.open3d import ReconstructionUtil
 from smg.opengl import OpenGLMatrixContext, OpenGLTriMesh, OpenGLUtil

@@ -1,17 +1,17 @@
 import cv2
-# import detectron2
+import detectron2
 import numpy as np
 import open3d as o3d
 import threading
 import time
 
-# from detectron2.structures import Instances
+from detectron2.structures import Instances
 from timeit import default_timer as timer
 from typing import List, Optional, Tuple
 
 from smg.comms.base import RGBDFrameReceiver
 from smg.comms.mapping import MappingServer
-# from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
+from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
 from smg.open3d import ReconstructionUtil
 from smg.relocalisation import ArUcoPnPRelocaliser
 from smg.utility import GeometryUtil, ImageUtil, MonocularDepthEstimator, SequenceUtil
@@ -102,7 +102,7 @@ class Open3DMappingSystem:
         else:
             return None
 
-    def run(self): # -> Tuple[o3d.pipelines.integration.ScalableTSDFVolume, List[ObjectDetector3D.Object3D]]:
+    def run(self) -> Tuple[o3d.pipelines.integration.ScalableTSDFVolume, List[ObjectDetector3D.Object3D]]:
         """
         Run the mapping system.
 
@@ -147,7 +147,7 @@ class Open3DMappingSystem:
                     cv2.imshow("Instance Segmentation", self.__instance_segmentation)
                     cv2.waitKey(1)
 
-    def terminate(self): # -> Tuple[o3d.pipelines.integration.ScalableTSDFVolume, List[ObjectDetector3D.Object3D]]:
+    def terminate(self) -> Tuple[o3d.pipelines.integration.ScalableTSDFVolume, List[ObjectDetector3D.Object3D]]:
         """
         Destroy the mapping system.
 

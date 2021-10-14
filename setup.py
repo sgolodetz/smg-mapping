@@ -15,11 +15,11 @@ setup(
     packages=find_packages(include=["smg.mapping", "smg.mapping.*"]),
     include_package_data=True,
     install_requires=[
-        # "smg-detectron2",
+        "smg-detectron2",
         "smg-joysticks",
         "smg-open3d",
         "smg-pyoctomap",
-        # "smg-pyremode",
+        "smg-pyremode",
         "smg-skeletons"
     ],
     classifiers=[
