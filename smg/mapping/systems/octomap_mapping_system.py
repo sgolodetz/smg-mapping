@@ -1,6 +1,7 @@
 import cv2
 import detectron2
 import numpy as np
+import open3d as o3d
 import os
 
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
@@ -18,13 +19,15 @@ from smg.comms.base import RGBDFrameReceiver
 from smg.comms.mapping import MappingServer
 from smg.comms.skeletons import RemoteSkeletonDetector
 from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
-from smg.opengl import OpenGLMatrixContext, OpenGLUtil
+from smg.meshing import MeshUtil
+from smg.open3d import ReconstructionUtil
+from smg.opengl import OpenGLMatrixContext, OpenGLTriMesh, OpenGLUtil
 from smg.pyoctomap import CM_COLOR_HEIGHT, OctomapPicker, OctomapUtil, OcTree, OcTreeDrawer, Pointcloud, Vector3
 from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
 from smg.rigging.helpers import CameraPoseConverter
 from smg.skeletons import Skeleton3D, SkeletonRenderer, SkeletonUtil
-from smg.utility import GeometryUtil, MonocularDepthEstimator, SequenceUtil
+from smg.utility import GeometryUtil, ImageUtil, MonocularDepthEstimator, SequenceUtil
 
 from ..selectors.bone_selector import BoneSelector
 
@@ -36,9 +39,10 @@ class OctomapMappingSystem:
 
     def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
                  camera_mode: str = "free", detect_objects: bool = False, detect_skeletons: bool = False,
-                 output_dir: Optional[str] = None, postprocess_depth: bool = True, save_frames: bool = False,
-                 save_reconstruction: bool = False, save_skeletons: bool = False, use_arm_selection: bool = False,
-                 use_received_depth: bool = False, window_size: Tuple[int, int] = (640, 480)):
+                 max_received_depth: float = 3.0, output_dir: Optional[str] = None, postprocess_depth: bool = True,
+                 save_frames: bool = False, save_reconstruction: bool = False, save_skeletons: bool = False,
+                 use_arm_selection: bool = False, use_received_depth: bool = False, use_tsdf: bool = False,
+                 window_size: Tuple[int, int] = (640, 480)):
         """
         Construct a mapping system that reconstructs an Octomap.
 
@@ -47,6 +51,8 @@ class OctomapMappingSystem:
         :param camera_mode:         The camera mode to use (follow|free).
         :param detect_objects:      Whether to detect 3D objects.
         :param detect_skeletons:    Whether to detect 3D skeletons.
+        :param max_received_depth:  The maximum depth values to keep when using the received depth (pixels with
+                                    depth values greater than this will have their depths set to zero).
         :param output_dir:          An optional directory into which to save output files.
         :param postprocess_depth:   Whether to post-process the depth images.
         :param save_frames:         Whether to save the sequence of frames used to reconstruct the Octomap.
@@ -54,6 +60,7 @@ class OctomapMappingSystem:
         :param save_skeletons:      Whether to save the skeletons detected in each frame.
         :param use_arm_selection:   Whether to allow the user to select 3D points in the scene using their arm.
         :param use_received_depth:  Whether to use depth images received from the client instead of estimating depth.
+        :param use_tsdf:            Whether to reconstruct a TSDF as well as an Octomap (for visualisation purposes).
         :param window_size:         The size of window to use.
         """
         self.__camera_mode: str = camera_mode
@@ -61,6 +68,7 @@ class OctomapMappingSystem:
         self.__depth_estimator: MonocularDepthEstimator = depth_estimator
         self.__detect_objects: bool = detect_objects
         self.__detect_skeletons: bool = detect_skeletons
+        self.__max_received_depth: float = max_received_depth
         self.__output_dir: Optional[str] = output_dir
         self.__postprocess_depth: bool = postprocess_depth
         self.__save_frames: bool = save_frames
@@ -70,6 +78,7 @@ class OctomapMappingSystem:
         self.__should_terminate: threading.Event = threading.Event()
         self.__use_arm_selection: bool = use_arm_selection
         self.__use_received_depth: bool = use_received_depth
+        self.__use_tsdf: bool = use_tsdf
         self.__window_size: Tuple[int, int] = window_size
 
         # The image size and camera intrinsics, together with their lock.
@@ -83,12 +92,16 @@ class OctomapMappingSystem:
         self.__object_detection_w_t_c: Optional[np.ndarray] = None
         self.__object_detection_lock: threading.Lock = threading.Lock()
 
-        # The most recent instance segmentation, the detected 3D objects and the octree, together with their lock.
+        # The most recent instance segmentation, the detected 3D objects and the scene representations,
+        # together with their lock.
         self.__instance_segmentation: Optional[np.ndarray] = None
+        self.__mesh: Optional[OpenGLTriMesh] = None
+        self.__mesh_needs_updating: threading.Event = threading.Event()
         self.__objects: List[ObjectDetector3D.Object3D] = []
         self.__octree: Optional[OcTree] = None
         self.__scene_lock: threading.Lock = threading.Lock()
         self.__skeletons: List[Skeleton3D] = []
+        self.__tsdf: Optional[o3d.pipelines.integration.ScalableTSDFVolume] = None
 
         # The threads and conditions.
         self.__mapping_thread: Optional[threading.Thread] = None
@@ -153,11 +166,8 @@ class OctomapMappingSystem:
         while not self.__should_terminate.is_set():
             # Process any PyGame events.
             for event in pygame.event.get():
-                # If the user wants to quit:
+                # If the user wants to quit, do so.
                 if event.type == pygame.QUIT:
-                    # Shut down pygame, close any remaining OpenCV windows, and exit.
-                    pygame.quit()
-                    cv2.destroyAllWindows()
                     return
 
             # Try to get the camera parameters.
@@ -171,8 +181,11 @@ class OctomapMappingSystem:
                     cv2.imshow("Instance Segmentation", self.__instance_segmentation)
                     cv2.waitKey(1)
 
+            # Get the set of currently pressed keys.
+            pressed_keys = pygame.key.get_pressed()
+
             # Allow the user to control the camera.
-            camera_controller.update(pygame.key.get_pressed(), timer() * 1000)
+            camera_controller.update(pressed_keys, timer() * 1000)
 
             # Clear the colour and depth buffers.
             glClearColor(1.0, 1.0, 1.0, 1.0)
@@ -220,8 +233,20 @@ class OctomapMappingSystem:
                         OpenGLUtil.render_voxel_grid([-3, -2, -3], [3, 0, 3], [1, 1, 1], dotted=True)
 
                         with self.__scene_lock:
-                            # Draw the octree.
-                            if self.__octree is not None:
+                            # If TSDF reconstruction is enabled and 'v' is pressed:
+                            if self.__use_tsdf and pressed_keys[pygame.K_v]:
+                                # Update the mesh if the TSDF has changed since we last visualised it.
+                                if self.__mesh_needs_updating.is_set():
+                                    o3d_mesh: o3d.geometry.TriangleMesh = ReconstructionUtil.make_mesh(self.__tsdf)
+                                    self.__mesh = MeshUtil.convert_trimesh_to_opengl(o3d_mesh)
+                                    self.__mesh_needs_updating.clear()
+
+                                # If the mesh is available, render it.
+                                if self.__mesh is not None:
+                                    self.__mesh.render()
+
+                            # Otherwise, if the octree is available, render it.
+                            elif self.__octree is not None:
                                 OctomapUtil.draw_octree(self.__octree, drawer)
 
                             # Draw the 3D objects.
@@ -248,6 +273,13 @@ class OctomapMappingSystem:
         """Destroy the mapping system."""
         if not self.__should_terminate.is_set():
             self.__should_terminate.set()
+
+            # If the mesh was ever created, destroy it prior to shutting down pygame (essential to prevent errors).
+            del self.__mesh
+
+            # Shut down pygame and close any remaining OpenCV windows.
+            pygame.quit()
+            cv2.destroyAllWindows()
 
             # Join any running threads.
             if self.__mapping_thread is not None:
@@ -277,6 +309,14 @@ class OctomapMappingSystem:
         voxel_size: float = 0.05
         self.__octree = OcTree(voxel_size)
         self.__octree.set_occupancy_thres(0.7)
+
+        # If requested, also construct the TSDF.
+        if self.__use_tsdf:
+            self.__tsdf = o3d.pipelines.integration.ScalableTSDFVolume(
+                voxel_length=0.01,
+                sdf_trunc=0.1,
+                color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8
+            )
 
         # Until termination is requested:
         while not self.__should_terminate.is_set():
@@ -329,8 +369,10 @@ class OctomapMappingSystem:
                 if self.__use_received_depth:
                     estimated_depth_image = receiver.get_depth_image()
 
-                    # Limit the depth range to 3m (more distant points can be unreliable).
-                    estimated_depth_image = np.where(estimated_depth_image <= 3.0, estimated_depth_image, 0.0)
+                    # Limit the depth range (more distant points can be unreliable).
+                    estimated_depth_image = np.where(
+                        estimated_depth_image <= self.__max_received_depth, estimated_depth_image, 0.0
+                    )
 
                 # Otherwise:
                 else:
@@ -386,6 +428,18 @@ class OctomapMappingSystem:
 
                     end = timer()
                     print(f"  - Fusion Time: {end - start}s")
+
+                    # If requested, also fuse the RGB-D image into the TSDF.
+                    if self.__use_tsdf:
+                        fx, fy, cx, cy = intrinsics
+                        o3d_intrinsics: o3d.camera.PinholeCameraIntrinsic = o3d.camera.PinholeCameraIntrinsic(
+                            width, height, fx, fy, cx, cy
+                        )
+                        ReconstructionUtil.integrate_frame(
+                            ImageUtil.flip_channels(colour_image), estimated_depth_image, np.linalg.inv(mapping_w_t_c),
+                            o3d_intrinsics, self.__tsdf
+                        )
+                        self.__mesh_needs_updating.set()
 
                     # If no frame is currently being processed by the 3D object detector, schedule this one.
                     acquired: bool = self.__object_detection_lock.acquire(blocking=False)
