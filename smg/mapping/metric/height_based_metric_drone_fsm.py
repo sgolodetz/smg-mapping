@@ -256,4 +256,5 @@ class HeightBasedMetricDroneFSM:
 
         # If the user throttles down, complete the calibration process.
         if self.__throttle_down_event.is_set():
+            self.__pose_globaliser.finish_training()
             self.__state = HeightBasedMetricDroneFSM.DS_METRIC
