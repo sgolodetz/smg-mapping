@@ -102,7 +102,6 @@ class OctomapMappingSystem:
         self.__scene_lock: threading.Lock = threading.Lock()
         self.__skeletons: List[Skeleton3D] = []
         self.__tsdf: Optional[o3d.pipelines.integration.ScalableTSDFVolume] = None
-        self.__visualise_mesh: threading.Event = threading.Event()
 
         # The threads and conditions.
         self.__mapping_thread: Optional[threading.Thread] = None
@@ -182,12 +181,8 @@ class OctomapMappingSystem:
                     cv2.imshow("Instance Segmentation", self.__instance_segmentation)
                     cv2.waitKey(1)
 
+            # Get the set of currently pressed keys.
             pressed_keys = pygame.key.get_pressed()
-
-            if pressed_keys[pygame.K_v]:
-                self.__visualise_mesh.set()
-            else:
-                self.__visualise_mesh.clear()
 
             # Allow the user to control the camera.
             camera_controller.update(pressed_keys, timer() * 1000)
@@ -238,8 +233,8 @@ class OctomapMappingSystem:
                         OpenGLUtil.render_voxel_grid([-3, -2, -3], [3, 0, 3], [1, 1, 1], dotted=True)
 
                         with self.__scene_lock:
-                            # If TSDF reconstruction is enabled and we're trying to visualise the corresponding mesh:
-                            if self.__use_tsdf and self.__visualise_mesh.is_set():
+                            # If TSDF reconstruction is enabled and 'v' is pressed:
+                            if self.__use_tsdf and pressed_keys[pygame.K_v]:
                                 # Update the mesh if the TSDF has changed since we last visualised it.
                                 if self.__mesh_needs_updating.is_set():
                                     o3d_mesh: o3d.geometry.TriangleMesh = ReconstructionUtil.make_mesh(self.__tsdf)
