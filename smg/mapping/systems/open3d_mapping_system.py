@@ -1,20 +1,30 @@
 import cv2
-import detectron2
 import numpy as np
 import open3d as o3d
 import threading
 import time
 
-from detectron2.structures import Instances
 from timeit import default_timer as timer
 from typing import List, Optional, Tuple
 
 from smg.comms.base import RGBDFrameReceiver
 from smg.comms.mapping import MappingServer
-from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
 from smg.open3d import ReconstructionUtil
 from smg.relocalisation import ArUcoPnPRelocaliser
 from smg.utility import GeometryUtil, ImageUtil, MonocularDepthEstimator, SequenceUtil
+
+try:
+    # noinspection PyUnresolvedReferences
+    import detectron2
+    from detectron2.structures import Instances
+    from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
+except ImportError:
+    class InstanceSegmenter:
+        pass
+
+    class ObjectDetector3D:
+        class Object3D:
+            pass
 
 
 class Open3DMappingSystem:
