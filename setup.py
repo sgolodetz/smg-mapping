@@ -23,7 +23,8 @@ setup(
     extras_require={
         "all": [
             "smg-detectron2",
-            "smg-pyremode"
+            "smg-pyremode",
+            "smg-smplx"
         ]
     },
     classifiers=[
