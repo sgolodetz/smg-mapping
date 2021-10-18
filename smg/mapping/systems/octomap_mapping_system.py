@@ -168,6 +168,7 @@ class OctomapMappingSystem:
 
         # If we're rendering an SMPL body for each skeleton, load in the default body model.
         if self.__render_bodies:
+            # FIXME: These paths shouldn't be hard-coded like this.
             self.__body = SMPLBody(
                 "male",
                 texture_coords_filename="D:/smplx/textures/smpl/texture_coords.npy",
