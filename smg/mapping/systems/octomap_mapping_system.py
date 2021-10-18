@@ -31,8 +31,10 @@ from ..selectors.bone_selector import BoneSelector
 try:
     # noinspection PyUnresolvedReferences
     import detectron2
+    # noinspection PyUnresolvedReferences
     from detectron2.structures import Instances
     from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
+    from smg.smplx import SMPLBody
 except ImportError:
     class InstanceSegmenter:
         pass
@@ -40,6 +42,9 @@ except ImportError:
     class ObjectDetector3D:
         class Object3D:
             pass
+
+    class SMPLBody:
+        pass
 
 
 class OctomapMappingSystem:
@@ -50,9 +55,9 @@ class OctomapMappingSystem:
     def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
                  camera_mode: str = "free", detect_objects: bool = False, detect_skeletons: bool = False,
                  max_received_depth: float = 3.0, output_dir: Optional[str] = None, postprocess_depth: bool = True,
-                 save_frames: bool = False, save_reconstruction: bool = False, save_skeletons: bool = False,
-                 use_arm_selection: bool = False, use_received_depth: bool = False, use_tsdf: bool = False,
-                 window_size: Tuple[int, int] = (640, 480)):
+                 render_bodies: bool = False, save_frames: bool = False, save_reconstruction: bool = False,
+                 save_skeletons: bool = False, use_arm_selection: bool = False, use_received_depth: bool = False,
+                 use_tsdf: bool = False, window_size: Tuple[int, int] = (640, 480)):
         """
         Construct a mapping system that reconstructs an Octomap.
 
@@ -65,6 +70,7 @@ class OctomapMappingSystem:
                                     depth values greater than this will have their depths set to zero).
         :param output_dir:          An optional directory into which to save output files.
         :param postprocess_depth:   Whether to post-process the depth images.
+        :param render_bodies:       Whether to render an SMPL body in place of each detected skeleton.
         :param save_frames:         Whether to save the sequence of frames used to reconstruct the Octomap.
         :param save_reconstruction: Whether to save the reconstructed Octomap.
         :param save_skeletons:      Whether to save the skeletons detected in each frame.
@@ -73,6 +79,7 @@ class OctomapMappingSystem:
         :param use_tsdf:            Whether to reconstruct a TSDF as well as an Octomap (for visualisation purposes).
         :param window_size:         The size of window to use.
         """
+        self.__body: Optional[SMPLBody] = None
         self.__camera_mode: str = camera_mode
         self.__client_id: int = 0
         self.__depth_estimator: MonocularDepthEstimator = depth_estimator
@@ -81,6 +88,7 @@ class OctomapMappingSystem:
         self.__max_received_depth: float = max_received_depth
         self.__output_dir: Optional[str] = output_dir
         self.__postprocess_depth: bool = postprocess_depth
+        self.__render_bodies: bool = render_bodies
         self.__save_frames: bool = save_frames
         self.__save_reconstruction: bool = save_reconstruction
         self.__save_skeletons: bool = save_skeletons
@@ -157,6 +165,15 @@ class OctomapMappingSystem:
         camera_controller: KeyboardCameraController = KeyboardCameraController(
             SimpleCamera([0, 0, 0], [0, 0, 1], [0, -1, 0]), canonical_angular_speed=0.05, canonical_linear_speed=0.1
         )
+
+        # If we're rendering an SMPL body for each skeleton, load in the default body model.
+        if self.__render_bodies:
+            # FIXME: These paths shouldn't be hard-coded like this.
+            self.__body = SMPLBody(
+                "male",
+                texture_coords_filename="D:/smplx/textures/smpl/texture_coords.npy",
+                texture_image_filename="D:/smplx/textures/smpl/surreal/nongrey_male_0170.jpg"
+            )
 
         # Start the mapping thread.
         self.__mapping_thread = threading.Thread(target=self.__run_mapping)
@@ -264,10 +281,13 @@ class OctomapMappingSystem:
                             for obj in self.__objects:
                                 OpenGLUtil.render_aabb(*obj.box_3d)
 
-                            # Draw the 3D skeletons.
+                            # Draw the detected people.
                             with SkeletonRenderer.default_lighting_context():
                                 for skeleton in self.__skeletons:
-                                    SkeletonRenderer.render_skeleton(skeleton)
+                                    if self.__render_bodies:
+                                        self.__body.render_from_skeleton(skeleton)
+                                    else:
+                                        SkeletonRenderer.render_skeleton(skeleton)
 
                             # Draw any 3D scene point that the user selected.
                             if selected_point is not None:
