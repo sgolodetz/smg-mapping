@@ -55,7 +55,7 @@ class OctomapMappingSystem:
     def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
                  camera_mode: str = "free", detect_objects: bool = False, detect_skeletons: bool = False,
                  max_received_depth: float = 3.0, output_dir: Optional[str] = None, postprocess_depth: bool = True,
-                 render_smpl_bodies: bool = True, save_frames: bool = False, save_reconstruction: bool = False,
+                 render_bodies: bool = False, save_frames: bool = False, save_reconstruction: bool = False,
                  save_skeletons: bool = False, use_arm_selection: bool = False, use_received_depth: bool = False,
                  use_tsdf: bool = False, window_size: Tuple[int, int] = (640, 480)):
         """
@@ -70,7 +70,7 @@ class OctomapMappingSystem:
                                     depth values greater than this will have their depths set to zero).
         :param output_dir:          An optional directory into which to save output files.
         :param postprocess_depth:   Whether to post-process the depth images.
-        :param render_smpl_bodies:  Whether to render an SMPL body in place of each detected skeleton.
+        :param render_bodies:       Whether to render an SMPL body in place of each detected skeleton.
         :param save_frames:         Whether to save the sequence of frames used to reconstruct the Octomap.
         :param save_reconstruction: Whether to save the reconstructed Octomap.
         :param save_skeletons:      Whether to save the skeletons detected in each frame.
@@ -88,7 +88,7 @@ class OctomapMappingSystem:
         self.__max_received_depth: float = max_received_depth
         self.__output_dir: Optional[str] = output_dir
         self.__postprocess_depth: bool = postprocess_depth
-        self.__render_smpl_bodies: bool = render_smpl_bodies
+        self.__render_bodies: bool = render_bodies
         self.__save_frames: bool = save_frames
         self.__save_reconstruction: bool = save_reconstruction
         self.__save_skeletons: bool = save_skeletons
@@ -167,7 +167,7 @@ class OctomapMappingSystem:
         )
 
         # If we're rendering an SMPL body for each skeleton, load in the default body model.
-        if self.__render_smpl_bodies:
+        if self.__render_bodies:
             self.__body = SMPLBody(
                 "male",
                 texture_coords_filename="D:/smplx/textures/smpl/texture_coords.npy",
@@ -283,7 +283,7 @@ class OctomapMappingSystem:
                             # Draw the detected people.
                             with SkeletonRenderer.default_lighting_context():
                                 for skeleton in self.__skeletons:
-                                    if self.__render_smpl_bodies:
+                                    if self.__render_bodies:
                                         self.__body.render_from_skeleton(skeleton)
                                     else:
                                         SkeletonRenderer.render_skeleton(skeleton)
