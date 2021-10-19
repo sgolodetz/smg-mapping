@@ -336,15 +336,15 @@ class OctomapMappingSystem:
             if self.__detect_skeletons else None
 
         # Construct the octree.
-        voxel_size: float = 0.05
+        voxel_size: float = 0.1
         self.__octree = OcTree(voxel_size)
         self.__octree.set_occupancy_thres(0.7)
 
         # If requested, also construct the TSDF.
         if self.__use_tsdf:
             self.__tsdf = o3d.pipelines.integration.ScalableTSDFVolume(
-                voxel_length=0.01,
-                sdf_trunc=0.1,
+                voxel_length=0.05,
+                sdf_trunc=0.2,
                 color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8
             )
 
@@ -467,7 +467,8 @@ class OctomapMappingSystem:
                         )
                         ReconstructionUtil.integrate_frame(
                             ImageUtil.flip_channels(colour_image), depopulated_depth_image,
-                            np.linalg.inv(mapping_w_t_c), o3d_intrinsics, self.__tsdf
+                            np.linalg.inv(mapping_w_t_c), o3d_intrinsics, self.__tsdf,
+                            depth_trunc=self.__max_received_depth
                         )
                         self.__mesh_needs_updating.set()
 
