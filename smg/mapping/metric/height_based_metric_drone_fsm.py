@@ -30,7 +30,7 @@ class HeightBasedMetricDroneFSM:
     # CONSTRUCTOR
 
     def __init__(self, drone: Drone, joystick: FutabaT6K, mapping_client: Optional[MappingClient] = None, *,
-                 output_dir: Optional[str] = None, save_frames: bool = False):
+                 output_dir: Optional[str] = None, save_frames: bool = False, save_scale: bool = False):
         """
         Construct a finite state machine that allows metric tracking to be configured for a drone by using
         the drone's height.
@@ -40,6 +40,7 @@ class HeightBasedMetricDroneFSM:
         :param mapping_client:  The mapping client to use (if any).
         :param output_dir:      An optional directory into which to save output files.
         :param save_frames:     Whether to save the sequence of frames that have been obtained from the drone.
+        :param save_scale:      Whether to save the scale estimation figure.
         """
         self.__calibration_message_sent: bool = False
         self.__drone: Drone = drone
@@ -48,7 +49,9 @@ class HeightBasedMetricDroneFSM:
         self.__landing_event: Event = Event()
         self.__mapping_client: Optional[MappingClient] = mapping_client
         self.__output_dir: Optional[str] = output_dir
-        self.__pose_globaliser: HeightBasedMonocularPoseGlobaliser = HeightBasedMonocularPoseGlobaliser(debug=True)
+        self.__pose_globaliser: HeightBasedMonocularPoseGlobaliser = HeightBasedMonocularPoseGlobaliser(
+            debug=True, output_dir=output_dir, save_scale=save_scale
+        )
         self.__save_frames: bool = save_frames
         self.__should_terminate: bool = False
         self.__state: HeightBasedMetricDroneFSM.EDroneState = HeightBasedMetricDroneFSM.DS_NON_METRIC
