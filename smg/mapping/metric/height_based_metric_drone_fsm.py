@@ -172,7 +172,7 @@ class HeightBasedMetricDroneFSM:
 
     def __iterate_metric(self, image: np.ndarray, image_timestamp: Optional[float],
                          intrinsics: Tuple[float, float, float, float],
-                         tracker_i_t_c: Optional[np.ndarray], height: Optional[float]) -> None:
+                         tracker_i_t_c: Optional[np.ndarray], drone_height: Optional[float]) -> None:
         """
         Run an iteration of the 'metric' state.
 
@@ -185,7 +185,7 @@ class HeightBasedMetricDroneFSM:
         :param intrinsics:      The drone's camera intrinsics.
         :param tracker_i_t_c:   A non-metric transformation from current camera space to initial camera space,
                                 as estimated by the tracker.
-        :param height:          The most recent height (in m) for the drone.
+        :param drone_height:    The most recent height (in m) for the drone.
         """
         # If the non-metric tracker pose is available:
         if tracker_i_t_c is not None:
@@ -221,8 +221,8 @@ class HeightBasedMetricDroneFSM:
         print(self.__tracker_w_t_c)
 
         # If the height is available, also print that.
-        if height is not None:
-            print(f"Height: {height}")
+        if drone_height is not None:
+            print(f"Height: {drone_height}")
 
     def __iterate_non_metric(self) -> None:
         """
@@ -237,7 +237,7 @@ class HeightBasedMetricDroneFSM:
         if self.__throttle_up_event.is_set():
             self.__state = HeightBasedMetricDroneFSM.DS_TRAINING
 
-    def __iterate_training(self, tracker_i_t_c: Optional[np.ndarray], height: Optional[float]) -> None:
+    def __iterate_training(self, tracker_i_t_c: Optional[np.ndarray], drone_height: Optional[float]) -> None:
         """
         Run an iteration of the 'training' state.
 
@@ -248,11 +248,11 @@ class HeightBasedMetricDroneFSM:
 
         :param tracker_i_t_c:   A non-metric transformation from current camera space to initial camera space,
                                 as estimated by the tracker.
-        :param height:          The most recent height (in m) for the drone.
+        :param drone_height:    The most recent height (in m) for the drone.
         """
         # Train the pose globaliser if possible.
-        if tracker_i_t_c is not None and height is not None:
-            self.__pose_globaliser.train(tracker_i_t_c, height)
+        if tracker_i_t_c is not None and drone_height is not None:
+            self.__pose_globaliser.train(tracker_i_t_c, drone_height)
 
         # If the user throttles down, complete the calibration process.
         if self.__throttle_down_event.is_set():
