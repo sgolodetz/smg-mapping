@@ -387,7 +387,9 @@ class OctomapMappingSystem:
                     skeleton_detector.set_calibration((width, height), intrinsics)
 
                     # Start trying to detect any skeletons in the colour image. If this fails, skip this frame.
-                    if not skeleton_detector.begin_detection(colour_image, mapping_w_t_c):
+                    if not skeleton_detector.begin_detection(
+                        colour_image, mapping_w_t_c, frame_idx=receiver.get_frame_index()
+                    ):
                         time.sleep(0.01)
                         continue
 
@@ -571,6 +573,7 @@ class OctomapMappingSystem:
             if self.__server.peek_newest_frame(self.__client_id, receiver):
                 # Get the most recent frame.
                 colour_image: np.ndarray = receiver.get_rgb_image()
+                frame_idx: int = receiver.get_frame_index()
                 world_from_camera: np.ndarray = receiver.get_pose()
 
                 # Send across the camera parameters if necessary.
@@ -579,7 +582,7 @@ class OctomapMappingSystem:
                     intrinsics_sent = True
 
                 # Detect any skeletons in the most recent frame.
-                skeletons, _ = skeleton_detector.detect_skeletons(colour_image, world_from_camera)
+                skeletons, _ = skeleton_detector.detect_skeletons(colour_image, world_from_camera, frame_idx=frame_idx)
 
                 # Make any skeletons that were detected available to other threads.
                 with self.__scene_lock:
