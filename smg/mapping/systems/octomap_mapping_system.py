@@ -99,10 +99,11 @@ class OctomapMappingSystem:
         self.__use_tsdf: bool = use_tsdf
         self.__window_size: Tuple[int, int] = window_size
 
-        # The image size and camera intrinsics, together with their lock.
+        # The camera parameters, together with their lock and condition.
         self.__image_size: Optional[Tuple[int, int]] = None
         self.__intrinsics: Optional[Tuple[float, float, float, float]] = None
         self.__parameters_lock: threading.Lock = threading.Lock()
+        self.__parameters_available: threading.Condition = threading.Condition(self.__parameters_lock)
 
         # The object detection inputs, together with their lock.
         self.__object_detection_colour_image: Optional[np.ndarray] = None
@@ -360,6 +361,7 @@ class OctomapMappingSystem:
                 with self.__parameters_lock:
                     self.__image_size = (width, height)
                     self.__intrinsics = intrinsics
+                    self.__parameters_available.notify_all()
 
                 # Pass the camera intrinsics to the depth estimator.
                 self.__depth_estimator.set_intrinsics(GeometryUtil.intrinsics_to_matrix(intrinsics))
@@ -545,17 +547,38 @@ class OctomapMappingSystem:
 
     def __run_skeleton_detection(self) -> None:
         """Run the (real-time) skeleton detection thread."""
+        # Get the camera intrinsics.
+        intrinsics: Optional[Tuple[float, float, float, float]] = None
+        intrinsics_sent: bool = False
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
         skeleton_detector: RemoteSkeletonDetector = RemoteSkeletonDetector(("127.0.0.1", 7853))
 
         # Until termination is requested:
         while not self.__should_terminate.is_set():
+            # If the camera intrinsics haven't yet been received:
+            if intrinsics is None:
+                # Wait for them to be received. If termination is requested in the meantime, early out.
+                with self.__parameters_lock:
+                    while self.__intrinsics is None:
+                        self.__parameters_available.wait(0.1)
+                        if self.__should_terminate.is_set():
+                            return
+
+                    intrinsics = self.__intrinsics
+
             # If the server has any frames from the client that have not yet been processed, and it's thus
             # possible to get the most recent one:
             if self.__server.peek_newest_frame(self.__client_id, receiver):
-                # Detect any skeletons in the most recent frame:
+                # Get the most recent frame.
                 colour_image: np.ndarray = receiver.get_rgb_image()
                 world_from_camera: np.ndarray = receiver.get_pose()
+
+                # Send across the camera parameters if necessary.
+                if not intrinsics_sent:
+                    skeleton_detector.set_calibration(colour_image.shape[:2], intrinsics)
+                    intrinsics_sent = True
+
+                # Detect any skeletons in the most recent frame.
                 skeletons, _ = skeleton_detector.detect_skeletons(colour_image, world_from_camera)
 
                 # Make any skeletons that were detected available to other threads.
