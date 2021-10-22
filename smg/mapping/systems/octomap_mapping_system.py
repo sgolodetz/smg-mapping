@@ -34,7 +34,6 @@ try:
     # noinspection PyUnresolvedReferences
     from detectron2.structures import Instances
     from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
-    from smg.smplx import SMPLBody
 except ImportError:
     class InstanceSegmenter:
         pass
@@ -43,6 +42,9 @@ except ImportError:
         class Object3D:
             pass
 
+try:
+    from smg.smplx import SMPLBody
+except ImportError:
     class SMPLBody:
         pass
 
