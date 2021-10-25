@@ -56,9 +56,10 @@ class OctomapMappingSystem:
 
     def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
                  camera_mode: str = "free", detect_objects: bool = False, detect_skeletons: bool = False,
-                 max_received_depth: float = 3.0, output_dir: Optional[str] = None, postprocess_depth: bool = True,
-                 render_bodies: bool = False, save_frames: bool = False, save_reconstruction: bool = False,
-                 save_skeletons: bool = False, use_arm_selection: bool = False, use_received_depth: bool = False,
+                 max_received_depth: float = 3.0, octree_voxel_size: float = 0.05, output_dir: Optional[str] = None,
+                 postprocess_depth: bool = True, render_bodies: bool = False, save_frames: bool = False,
+                 save_reconstruction: bool = False, save_skeletons: bool = False, tsdf_voxel_size: float = 0.01,
+                 use_arm_selection: bool = False, use_received_depth: bool = False,
                  use_tsdf: bool = False, window_size: Tuple[int, int] = (640, 480)):
         """
         Construct a mapping system that reconstructs an Octomap.
@@ -70,12 +71,14 @@ class OctomapMappingSystem:
         :param detect_skeletons:    Whether to detect 3D skeletons.
         :param max_received_depth:  The maximum depth values to keep when using the received depth (pixels with
                                     depth values greater than this will have their depths set to zero).
+        :param octree_voxel_size:   The voxel size (in m) to use for the Octomap.
         :param output_dir:          An optional directory into which to save output files.
         :param postprocess_depth:   Whether to post-process the depth images.
         :param render_bodies:       Whether to render an SMPL body in place of each detected skeleton.
         :param save_frames:         Whether to save the sequence of frames used to reconstruct the Octomap.
         :param save_reconstruction: Whether to save the reconstructed Octomap.
         :param save_skeletons:      Whether to save the skeletons detected in each frame.
+        :param tsdf_voxel_size:     The voxel size (in m) to use for the TSDF (if we're reconstructing it).
         :param use_arm_selection:   Whether to allow the user to select 3D points in the scene using their arm.
         :param use_received_depth:  Whether to use depth images received from the client instead of estimating depth.
         :param use_tsdf:            Whether to reconstruct a TSDF as well as an Octomap (for visualisation purposes).
@@ -88,6 +91,7 @@ class OctomapMappingSystem:
         self.__detect_objects: bool = detect_objects
         self.__detect_skeletons: bool = detect_skeletons
         self.__max_received_depth: float = max_received_depth
+        self.__octree_voxel_size: float = octree_voxel_size
         self.__output_dir: Optional[str] = output_dir
         self.__postprocess_depth: bool = postprocess_depth
         self.__render_bodies: bool = render_bodies
@@ -96,6 +100,7 @@ class OctomapMappingSystem:
         self.__save_skeletons: bool = save_skeletons
         self.__server: MappingServer = server
         self.__should_terminate: threading.Event = threading.Event()
+        self.__tsdf_voxel_size: float = tsdf_voxel_size
         self.__use_arm_selection: bool = use_arm_selection
         self.__use_received_depth: bool = use_received_depth
         self.__use_tsdf: bool = use_tsdf
@@ -339,15 +344,14 @@ class OctomapMappingSystem:
             if self.__detect_skeletons else None
 
         # Construct the octree.
-        voxel_size: float = 0.1
-        self.__octree = OcTree(voxel_size)
+        self.__octree = OcTree(self.__octree_voxel_size)
         self.__octree.set_occupancy_thres(0.7)
 
         # If requested, also construct the TSDF.
         if self.__use_tsdf:
             self.__tsdf = o3d.pipelines.integration.ScalableTSDFVolume(
-                voxel_length=0.05,
-                sdf_trunc=0.2,
+                voxel_length=self.__tsdf_voxel_size,
+                sdf_trunc=self.__tsdf_voxel_size * 10,
                 color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8
             )
 
@@ -474,7 +478,7 @@ class OctomapMappingSystem:
                         ReconstructionUtil.integrate_frame(
                             ImageUtil.flip_channels(colour_image), depopulated_depth_image,
                             np.linalg.inv(mapping_w_t_c), o3d_intrinsics, self.__tsdf,
-                            depth_trunc=self.__max_received_depth
+                            depth_trunc=np.inf
                         )
                         self.__mesh_needs_updating.set()
 
