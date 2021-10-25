@@ -136,8 +136,7 @@ class Open3DMappingSystem:
             if self.__batch_mode and self.__server.has_finished(self.__client_id):
                 return self.terminate()
 
-            # If the server has any frames from the client that have not yet been processed, get the colour image
-            # from the most recent one.
+            # If the server has ever received a frame from the client, get the colour image from the most recent one.
             if self.__server.peek_newest_frame(self.__client_id, receiver):
                 newest_colour_image = receiver.get_rgb_image()
 

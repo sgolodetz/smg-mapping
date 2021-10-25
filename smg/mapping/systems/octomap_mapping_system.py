@@ -573,10 +573,9 @@ class OctomapMappingSystem:
 
                     intrinsics = self.__intrinsics
 
-            # If the server has any frames from the client that have not yet been processed, and it's thus
-            # possible to get the most recent one:
+            # Try to get the most recent frame that has been received from the client. If that succeeds:
             if self.__server.peek_newest_frame(self.__client_id, receiver):
-                # Get the most recent frame.
+                # Extract the relevant frame data.
                 colour_image: np.ndarray = receiver.get_rgb_image()
                 frame_idx: int = receiver.get_frame_index()
                 world_from_camera: np.ndarray = receiver.get_pose()
