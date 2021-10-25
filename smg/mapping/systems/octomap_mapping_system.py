@@ -106,11 +106,11 @@ class OctomapMappingSystem:
         self.__use_tsdf: bool = use_tsdf
         self.__window_size: Tuple[int, int] = window_size
 
-        # The camera parameters, together with their lock and condition.
+        # The camera calibration parameters, together with their lock and condition.
+        self.__calibration_lock: threading.Lock = threading.Lock()
+        self.__calibration_available: threading.Condition = threading.Condition(self.__calibration_lock)
         self.__image_size: Optional[Tuple[int, int]] = None
         self.__intrinsics: Optional[Tuple[float, float, float, float]] = None
-        self.__parameters_lock: threading.Lock = threading.Lock()
-        self.__parameters_available: threading.Condition = threading.Condition(self.__parameters_lock)
 
         # The object detection inputs, together with their lock.
         self.__object_detection_colour_image: Optional[np.ndarray] = None
@@ -206,7 +206,7 @@ class OctomapMappingSystem:
                     return
 
             # Try to get the camera parameters.
-            with self.__parameters_lock:
+            with self.__calibration_lock:
                 image_size: Optional[Tuple[int, int]] = self.__image_size
                 intrinsics: Optional[Tuple[float, float, float, float]] = self.__intrinsics
 
@@ -364,10 +364,10 @@ class OctomapMappingSystem:
                 intrinsics: Tuple[float, float, float, float] = self.__server.get_intrinsics(self.__client_id)[0]
 
                 # Record them so that other threads have access to them.
-                with self.__parameters_lock:
+                with self.__calibration_lock:
                     self.__image_size = (width, height)
                     self.__intrinsics = intrinsics
-                    self.__parameters_available.notify_all()
+                    self.__calibration_available.notify_all()
 
                 # Pass the camera intrinsics to the depth estimator.
                 self.__depth_estimator.set_intrinsics(GeometryUtil.intrinsics_to_matrix(intrinsics))
@@ -529,7 +529,7 @@ class OctomapMappingSystem:
                 )
 
                 # Get the camera intrinsics.
-                with self.__parameters_lock:
+                with self.__calibration_lock:
                     intrinsics: Tuple[float, float, float, float] = self.__intrinsics
 
                 start = timer()
@@ -555,9 +555,8 @@ class OctomapMappingSystem:
 
     def __run_skeleton_detection(self) -> None:
         """Run the (real-time) skeleton detection thread."""
-        # Get the camera intrinsics.
+        calibration_sent: bool = False
         intrinsics: Optional[Tuple[float, float, float, float]] = None
-        intrinsics_sent: bool = False
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
         skeleton_detector: RemoteSkeletonDetector = RemoteSkeletonDetector(("127.0.0.1", 7853))
 
@@ -566,9 +565,9 @@ class OctomapMappingSystem:
             # If the camera intrinsics haven't yet been received:
             if intrinsics is None:
                 # Wait for them to be received. If termination is requested in the meantime, early out.
-                with self.__parameters_lock:
+                with self.__calibration_lock:
                     while self.__intrinsics is None:
-                        self.__parameters_available.wait(0.1)
+                        self.__calibration_available.wait(0.1)
                         if self.__should_terminate.is_set():
                             return
 
@@ -582,10 +581,10 @@ class OctomapMappingSystem:
                 frame_idx: int = receiver.get_frame_index()
                 world_from_camera: np.ndarray = receiver.get_pose()
 
-                # Send across the camera parameters if necessary.
-                if not intrinsics_sent:
+                # If the camera parameters haven't yet been sent to the skeleton detector, send them now.
+                if not calibration_sent:
                     skeleton_detector.set_calibration(colour_image.shape[:2], intrinsics)
-                    intrinsics_sent = True
+                    calibration_sent = True
 
                 # Detect any skeletons in the most recent frame.
                 skeletons, _ = skeleton_detector.detect_skeletons(colour_image, world_from_camera, frame_idx=frame_idx)
