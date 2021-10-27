@@ -38,7 +38,7 @@ class Open3DMappingSystem:
                  aruco_relocaliser: Optional[ArUcoPnPRelocaliser] = None, batch_mode: bool = False,
                  debug: bool = False, detect_objects: bool = False, detect_skeletons: bool = False,
                  max_received_depth: float = 3.0, output_dir: Optional[str] = None, postprocess_depth: bool = True,
-                 save_frames: bool = False, use_received_depth: bool = False):
+                 save_frames: bool = False, use_received_depth: bool = False, voxel_size: float = 0.01):
         """
         Construct a mapping system that reconstructs an Open3D TSDF.
 
@@ -55,6 +55,7 @@ class Open3DMappingSystem:
         :param postprocess_depth:   Whether to post-process the depth images.
         :param save_frames:         Whether to save the sequence of frames used to reconstruct the TSDF.
         :param use_received_depth:  Whether to use depth images received from the client instead of estimating depth.
+        :param voxel_size:          The voxel size (in m) to use for the TSDF.
         """
         self.__aruco_from_world_estimates: List[np.ndarray] = []
         self.__aruco_relocaliser: Optional[ArUcoPnPRelocaliser] = aruco_relocaliser
@@ -87,8 +88,8 @@ class Open3DMappingSystem:
         self.__instance_segmentation: Optional[np.ndarray] = None
         self.__objects: List[ObjectDetector3D.Object3D] = []
         self.__tsdf: o3d.pipelines.integration.ScalableTSDFVolume = o3d.pipelines.integration.ScalableTSDFVolume(
-            voxel_length=0.01,
-            sdf_trunc=0.1,
+            voxel_length=voxel_size,
+            sdf_trunc=voxel_size * 10,
             color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8
         )
         self.__scene_lock: threading.Lock = threading.Lock()
