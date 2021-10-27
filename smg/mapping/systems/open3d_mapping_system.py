@@ -9,8 +9,10 @@ from typing import List, Optional, Tuple
 
 from smg.comms.base import RGBDFrameReceiver
 from smg.comms.mapping import MappingServer
+from smg.comms.skeletons import RemoteSkeletonDetector
 from smg.open3d import ReconstructionUtil
 from smg.relocalisation import ArUcoPnPRelocaliser
+from smg.skeletons import SkeletonUtil
 from smg.utility import GeometryUtil, ImageUtil, MonocularDepthEstimator, SequenceUtil
 
 try:
@@ -34,9 +36,9 @@ class Open3DMappingSystem:
 
     def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
                  aruco_relocaliser: Optional[ArUcoPnPRelocaliser] = None, batch_mode: bool = False,
-                 debug: bool = False, detect_objects: bool = False, max_received_depth: float = 3.0,
-                 output_dir: Optional[str] = None, postprocess_depth: bool = True, save_frames: bool = False,
-                 use_received_depth: bool = False):
+                 debug: bool = False, detect_objects: bool = False, detect_skeletons: bool = False,
+                 max_received_depth: float = 3.0, output_dir: Optional[str] = None, postprocess_depth: bool = True,
+                 save_frames: bool = False, use_received_depth: bool = False):
         """
         Construct a mapping system that reconstructs an Open3D TSDF.
 
@@ -46,6 +48,7 @@ class Open3DMappingSystem:
         :param batch_mode:          Whether to use batch mode.
         :param debug:               Whether to enable debugging.
         :param detect_objects:      Whether to detect 3D objects.
+        :param detect_skeletons:    Whether to detect 3D skeletons.
         :param max_received_depth:  The maximum depth values to keep when using the received depth (pixels with
                                     depth values greater than this will have their depths set to zero).
         :param output_dir:          An optional directory into which to save output files.
@@ -60,6 +63,7 @@ class Open3DMappingSystem:
         self.__debug: bool = debug
         self.__depth_estimator: MonocularDepthEstimator = depth_estimator
         self.__detect_objects: bool = detect_objects
+        self.__detect_skeletons: bool = detect_skeletons
         self.__max_received_depth: float = max_received_depth
         self.__output_dir: Optional[str] = output_dir
         self.__postprocess_depth: bool = postprocess_depth
@@ -69,9 +73,9 @@ class Open3DMappingSystem:
         self.__use_received_depth: bool = use_received_depth
 
         # The image size and camera intrinsics, together with their lock.
+        self.__calibration_lock: threading.Lock = threading.Lock()
         self.__image_size: Optional[Tuple[int, int]] = None
         self.__intrinsics: Optional[Tuple[float, float, float, float]] = None
-        self.__parameters_lock: threading.Lock = threading.Lock()
 
         # The detection inputs, together with their lock.
         self.__detection_colour_image: Optional[np.ndarray] = None
@@ -206,7 +210,7 @@ class Open3DMappingSystem:
                 )
 
                 # Get the camera intrinsics.
-                with self.__parameters_lock:
+                with self.__calibration_lock:
                     intrinsics: Tuple[float, float, float, float] = self.__intrinsics
 
                 start = timer()
@@ -234,6 +238,8 @@ class Open3DMappingSystem:
         """Run the mapping thread."""
         frame_idx: int = 0
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
+        skeleton_detector: Optional[RemoteSkeletonDetector] = RemoteSkeletonDetector() \
+            if self.__detect_skeletons else None
 
         # Until termination is requested:
         while not self.__should_terminate.is_set():
@@ -244,7 +250,7 @@ class Open3DMappingSystem:
                 intrinsics: Tuple[float, float, float, float] = self.__server.get_intrinsics(self.__client_id)[0]
 
                 # Record them so that other threads have access to them.
-                with self.__parameters_lock:
+                with self.__calibration_lock:
                     self.__image_size = (width, height)
                     self.__intrinsics = intrinsics
 
@@ -275,6 +281,19 @@ class Open3DMappingSystem:
                     )
                     frame_idx += 1
 
+                # If we're detecting skeletons:
+                if self.__detect_skeletons:
+                    # Set the camera calibration for the skeleton detector.
+                    # FIXME: Do this once.
+                    skeleton_detector.set_calibration((width, height), intrinsics)
+
+                    # Start trying to detect any skeletons in the colour image. If this fails, skip this frame.
+                    if not skeleton_detector.begin_detection(
+                        colour_image, mapping_w_t_c, frame_idx=receiver.get_frame_index()
+                    ):
+                        time.sleep(0.01)
+                        continue
+
                 # Try to estimate (or otherwise obtain) a depth image for the frame.
                 start = timer()
 
@@ -300,11 +319,28 @@ class Open3DMappingSystem:
                 end = timer()
                 print(f"  - Depth Estimation Time: {end - start}s")
 
+                # If we're detecting skeletons:
+                if self.__detect_skeletons:
+                    # Get the skeletons that we asked the detector for, together with their associated people mask.
+                    skeletons, people_mask = skeleton_detector.end_detection()
+
+                # Otherwise:
+                else:
+                    # Set the people mask to None, which will cause the subsequent depopulation step to be a no-op.
+                    people_mask: Optional[np.ndarray] = None
+
                 # If a depth image was successfully estimated:
                 if estimated_depth_image is not None:
+                    # Remove any detected people from the depth image.
+                    depopulated_depth_image: np.ndarray = estimated_depth_image.copy()
+                    if people_mask is not None:
+                        depopulated_depth_image = SkeletonUtil.depopulate_depth_image(
+                            depopulated_depth_image, people_mask
+                        )
+
                     # If we're debugging, show the depth image that is to be fused into the TSDF.
                     if self.__debug:
-                        cv2.imshow("Estimated Depth Image", estimated_depth_image / 5)
+                        cv2.imshow("Estimated Depth Image", depopulated_depth_image / 5)
                         cv2.waitKey(1)
 
                     # Fuse the frame into the TSDF.
@@ -315,8 +351,8 @@ class Open3DMappingSystem:
                         width, height, fx, fy, cx, cy
                     )
                     ReconstructionUtil.integrate_frame(
-                        ImageUtil.flip_channels(colour_image), estimated_depth_image, np.linalg.inv(mapping_w_t_c),
-                        o3d_intrinsics, self.__tsdf
+                        ImageUtil.flip_channels(colour_image), depopulated_depth_image,
+                        np.linalg.inv(mapping_w_t_c), o3d_intrinsics, self.__tsdf
                     )
 
                     end = timer()
