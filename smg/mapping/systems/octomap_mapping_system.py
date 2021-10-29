@@ -34,7 +34,6 @@ try:
     # noinspection PyUnresolvedReferences
     from detectron2.structures import Instances
     from smg.detectron2 import InstanceSegmenter, ObjectDetector3D
-    from smg.smplx import SMPLBody
 except ImportError:
     class InstanceSegmenter:
         pass
@@ -43,6 +42,9 @@ except ImportError:
         class Object3D:
             pass
 
+try:
+    from smg.smplx import SMPLBody
+except ImportError:
     class SMPLBody:
         pass
 
@@ -54,9 +56,10 @@ class OctomapMappingSystem:
 
     def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
                  camera_mode: str = "free", detect_objects: bool = False, detect_skeletons: bool = False,
-                 max_received_depth: float = 3.0, output_dir: Optional[str] = None, postprocess_depth: bool = True,
-                 render_bodies: bool = False, save_frames: bool = False, save_reconstruction: bool = False,
-                 save_skeletons: bool = False, use_arm_selection: bool = False, use_received_depth: bool = False,
+                 max_received_depth: float = 3.0, octree_voxel_size: float = 0.05, output_dir: Optional[str] = None,
+                 postprocess_depth: bool = True, render_bodies: bool = False, save_frames: bool = False,
+                 save_reconstruction: bool = False, save_skeletons: bool = False, tsdf_voxel_size: float = 0.01,
+                 use_arm_selection: bool = False, use_received_depth: bool = False,
                  use_tsdf: bool = False, window_size: Tuple[int, int] = (640, 480)):
         """
         Construct a mapping system that reconstructs an Octomap.
@@ -68,12 +71,14 @@ class OctomapMappingSystem:
         :param detect_skeletons:    Whether to detect 3D skeletons.
         :param max_received_depth:  The maximum depth values to keep when using the received depth (pixels with
                                     depth values greater than this will have their depths set to zero).
+        :param octree_voxel_size:   The voxel size (in m) to use for the Octomap.
         :param output_dir:          An optional directory into which to save output files.
         :param postprocess_depth:   Whether to post-process the depth images.
         :param render_bodies:       Whether to render an SMPL body in place of each detected skeleton.
         :param save_frames:         Whether to save the sequence of frames used to reconstruct the Octomap.
         :param save_reconstruction: Whether to save the reconstructed Octomap.
         :param save_skeletons:      Whether to save the skeletons detected in each frame.
+        :param tsdf_voxel_size:     The voxel size (in m) to use for the TSDF (if we're reconstructing it).
         :param use_arm_selection:   Whether to allow the user to select 3D points in the scene using their arm.
         :param use_received_depth:  Whether to use depth images received from the client instead of estimating depth.
         :param use_tsdf:            Whether to reconstruct a TSDF as well as an Octomap (for visualisation purposes).
@@ -86,6 +91,7 @@ class OctomapMappingSystem:
         self.__detect_objects: bool = detect_objects
         self.__detect_skeletons: bool = detect_skeletons
         self.__max_received_depth: float = max_received_depth
+        self.__octree_voxel_size: float = octree_voxel_size
         self.__output_dir: Optional[str] = output_dir
         self.__postprocess_depth: bool = postprocess_depth
         self.__render_bodies: bool = render_bodies
@@ -94,15 +100,17 @@ class OctomapMappingSystem:
         self.__save_skeletons: bool = save_skeletons
         self.__server: MappingServer = server
         self.__should_terminate: threading.Event = threading.Event()
+        self.__tsdf_voxel_size: float = tsdf_voxel_size
         self.__use_arm_selection: bool = use_arm_selection
         self.__use_received_depth: bool = use_received_depth
         self.__use_tsdf: bool = use_tsdf
         self.__window_size: Tuple[int, int] = window_size
 
-        # The image size and camera intrinsics, together with their lock.
+        # The camera calibration parameters, together with their lock and condition.
+        self.__calibration_lock: threading.Lock = threading.Lock()
+        self.__calibration_available: threading.Condition = threading.Condition(self.__calibration_lock)
         self.__image_size: Optional[Tuple[int, int]] = None
         self.__intrinsics: Optional[Tuple[float, float, float, float]] = None
-        self.__parameters_lock: threading.Lock = threading.Lock()
 
         # The object detection inputs, together with their lock.
         self.__object_detection_colour_image: Optional[np.ndarray] = None
@@ -198,7 +206,7 @@ class OctomapMappingSystem:
                     return
 
             # Try to get the camera parameters.
-            with self.__parameters_lock:
+            with self.__calibration_lock:
                 image_size: Optional[Tuple[int, int]] = self.__image_size
                 intrinsics: Optional[Tuple[float, float, float, float]] = self.__intrinsics
 
@@ -336,15 +344,14 @@ class OctomapMappingSystem:
             if self.__detect_skeletons else None
 
         # Construct the octree.
-        voxel_size: float = 0.05
-        self.__octree = OcTree(voxel_size)
+        self.__octree = OcTree(self.__octree_voxel_size)
         self.__octree.set_occupancy_thres(0.7)
 
         # If requested, also construct the TSDF.
         if self.__use_tsdf:
             self.__tsdf = o3d.pipelines.integration.ScalableTSDFVolume(
-                voxel_length=0.01,
-                sdf_trunc=0.1,
+                voxel_length=self.__tsdf_voxel_size,
+                sdf_trunc=self.__tsdf_voxel_size * 10,
                 color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8
             )
 
@@ -357,9 +364,10 @@ class OctomapMappingSystem:
                 intrinsics: Tuple[float, float, float, float] = self.__server.get_intrinsics(self.__client_id)[0]
 
                 # Record them so that other threads have access to them.
-                with self.__parameters_lock:
+                with self.__calibration_lock:
                     self.__image_size = (width, height)
                     self.__intrinsics = intrinsics
+                    self.__calibration_available.notify_all()
 
                 # Pass the camera intrinsics to the depth estimator.
                 self.__depth_estimator.set_intrinsics(GeometryUtil.intrinsics_to_matrix(intrinsics))
@@ -385,7 +393,9 @@ class OctomapMappingSystem:
                     skeleton_detector.set_calibration((width, height), intrinsics)
 
                     # Start trying to detect any skeletons in the colour image. If this fails, skip this frame.
-                    if not skeleton_detector.begin_detection(colour_image, mapping_w_t_c):
+                    if not skeleton_detector.begin_detection(
+                        colour_image, mapping_w_t_c, frame_idx=receiver.get_frame_index()
+                    ):
                         time.sleep(0.01)
                         continue
 
@@ -467,7 +477,8 @@ class OctomapMappingSystem:
                         )
                         ReconstructionUtil.integrate_frame(
                             ImageUtil.flip_channels(colour_image), depopulated_depth_image,
-                            np.linalg.inv(mapping_w_t_c), o3d_intrinsics, self.__tsdf
+                            np.linalg.inv(mapping_w_t_c), o3d_intrinsics, self.__tsdf,
+                            depth_trunc=np.inf
                         )
                         self.__mesh_needs_updating.set()
 
@@ -518,7 +529,7 @@ class OctomapMappingSystem:
                 )
 
                 # Get the camera intrinsics.
-                with self.__parameters_lock:
+                with self.__calibration_lock:
                     intrinsics: Tuple[float, float, float, float] = self.__intrinsics
 
                 start = timer()
@@ -544,18 +555,38 @@ class OctomapMappingSystem:
 
     def __run_skeleton_detection(self) -> None:
         """Run the (real-time) skeleton detection thread."""
+        calibration_sent: bool = False
+        intrinsics: Optional[Tuple[float, float, float, float]] = None
         receiver: RGBDFrameReceiver = RGBDFrameReceiver()
         skeleton_detector: RemoteSkeletonDetector = RemoteSkeletonDetector(("127.0.0.1", 7853))
 
         # Until termination is requested:
         while not self.__should_terminate.is_set():
-            # If the server has any frames from the client that have not yet been processed, and it's thus
-            # possible to get the most recent one:
+            # If the camera intrinsics haven't yet been received:
+            if intrinsics is None:
+                # Wait for them to be received. If termination is requested in the meantime, early out.
+                with self.__calibration_lock:
+                    while self.__intrinsics is None:
+                        self.__calibration_available.wait(0.1)
+                        if self.__should_terminate.is_set():
+                            return
+
+                    intrinsics = self.__intrinsics
+
+            # Try to get the most recent frame that has been received from the client. If that succeeds:
             if self.__server.peek_newest_frame(self.__client_id, receiver):
-                # Detect any skeletons in the most recent frame:
+                # Extract the relevant frame data.
                 colour_image: np.ndarray = receiver.get_rgb_image()
+                frame_idx: int = receiver.get_frame_index()
                 world_from_camera: np.ndarray = receiver.get_pose()
-                skeletons, _ = skeleton_detector.detect_skeletons(colour_image, world_from_camera)
+
+                # If the camera parameters haven't yet been sent to the skeleton detector, send them now.
+                if not calibration_sent:
+                    skeleton_detector.set_calibration(colour_image.shape[:2], intrinsics)
+                    calibration_sent = True
+
+                # Detect any skeletons in the most recent frame.
+                skeletons, _ = skeleton_detector.detect_skeletons(colour_image, world_from_camera, frame_idx=frame_idx)
 
                 # Make any skeletons that were detected available to other threads.
                 with self.__scene_lock:
