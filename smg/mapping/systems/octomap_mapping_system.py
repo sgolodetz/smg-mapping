@@ -54,7 +54,7 @@ class OctomapMappingSystem:
 
     # CONSTRUCTOR
 
-    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
+    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *, batch_mode: bool = False,
                  camera_mode: str = "free", detect_objects: bool = False, detect_skeletons: bool = False,
                  max_received_depth: float = 3.0, octree_voxel_size: float = 0.05, output_dir: Optional[str] = None,
                  postprocess_depth: bool = True, render_bodies: bool = False, save_frames: bool = False,
@@ -66,6 +66,7 @@ class OctomapMappingSystem:
 
         :param server:              The mapping server.
         :param depth_estimator:     The monocular depth estimator.
+        :param batch_mode:          Whether to use batch mode.
         :param camera_mode:         The camera mode to use (follow|free).
         :param detect_objects:      Whether to detect 3D objects.
         :param detect_skeletons:    Whether to detect 3D skeletons.
@@ -85,6 +86,7 @@ class OctomapMappingSystem:
         :param use_tsdf:            Whether to reconstruct a TSDF as well as an Octomap (for visualisation purposes).
         :param window_size:         The size of window to use.
         """
+        self.__batch_mode: bool = batch_mode
         self.__body: Optional[SMPLBody] = None
         self.__camera_mode: str = camera_mode
         self.__client_id: int = 0
@@ -206,6 +208,11 @@ class OctomapMappingSystem:
                 # If the user wants to quit, do so.
                 if event.type == pygame.QUIT:
                     return
+
+            # If we're in batch mode and the server will never receive any more frames from the client, exit.
+            if self.__batch_mode and self.__server.has_finished(self.__client_id):
+                self.terminate()
+                return
 
             # Try to get the camera parameters.
             with self.__calibration_lock:
