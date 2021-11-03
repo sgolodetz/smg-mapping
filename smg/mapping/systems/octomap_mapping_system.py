@@ -456,7 +456,7 @@ class OctomapMappingSystem:
                             # reason we're saving the people mask is to compare it with the ground truth one.
                             # This is made easier if the frame numbers used are the same.
                             cv2.imwrite(
-                                os.path.join(self.__output_dir, f"{receiver.get_frame_index()}.mask.png"),
+                                os.path.join(self.__output_dir, f"{receiver.get_frame_index()}.people.png"),
                                 people_mask
                             )
 
