@@ -353,7 +353,8 @@ class Open3DMappingSystem:
                     )
                     ReconstructionUtil.integrate_frame(
                         ImageUtil.flip_channels(colour_image), depopulated_depth_image,
-                        np.linalg.inv(mapping_w_t_c), o3d_intrinsics, self.__tsdf
+                        np.linalg.inv(mapping_w_t_c), o3d_intrinsics, self.__tsdf,
+                        depth_trunc=np.inf
                     )
 
                     end = timer()
