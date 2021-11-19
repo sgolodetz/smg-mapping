@@ -54,18 +54,19 @@ class OctomapMappingSystem:
 
     # CONSTRUCTOR
 
-    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *,
+    def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *, batch_mode: bool = False,
                  camera_mode: str = "free", detect_objects: bool = False, detect_skeletons: bool = False,
                  max_received_depth: float = 3.0, octree_voxel_size: float = 0.05, output_dir: Optional[str] = None,
                  postprocess_depth: bool = True, render_bodies: bool = False, save_frames: bool = False,
-                 save_reconstruction: bool = False, save_skeletons: bool = False, tsdf_voxel_size: float = 0.01,
-                 use_arm_selection: bool = False, use_received_depth: bool = False,
+                 save_people_masks: bool = False, save_reconstruction: bool = False, save_skeletons: bool = False,
+                 tsdf_voxel_size: float = 0.01, use_arm_selection: bool = False, use_received_depth: bool = False,
                  use_tsdf: bool = False, window_size: Tuple[int, int] = (640, 480)):
         """
         Construct a mapping system that reconstructs an Octomap.
 
         :param server:              The mapping server.
         :param depth_estimator:     The monocular depth estimator.
+        :param batch_mode:          Whether to use batch mode.
         :param camera_mode:         The camera mode to use (follow|free).
         :param detect_objects:      Whether to detect 3D objects.
         :param detect_skeletons:    Whether to detect 3D skeletons.
@@ -76,6 +77,7 @@ class OctomapMappingSystem:
         :param postprocess_depth:   Whether to post-process the depth images.
         :param render_bodies:       Whether to render an SMPL body in place of each detected skeleton.
         :param save_frames:         Whether to save the sequence of frames used to reconstruct the Octomap.
+        :param save_people_masks:   Whether to save the people mask for each frame.
         :param save_reconstruction: Whether to save the reconstructed Octomap.
         :param save_skeletons:      Whether to save the skeletons detected in each frame.
         :param tsdf_voxel_size:     The voxel size (in m) to use for the TSDF (if we're reconstructing it).
@@ -84,6 +86,7 @@ class OctomapMappingSystem:
         :param use_tsdf:            Whether to reconstruct a TSDF as well as an Octomap (for visualisation purposes).
         :param window_size:         The size of window to use.
         """
+        self.__batch_mode: bool = batch_mode
         self.__body: Optional[SMPLBody] = None
         self.__camera_mode: str = camera_mode
         self.__client_id: int = 0
@@ -96,6 +99,7 @@ class OctomapMappingSystem:
         self.__postprocess_depth: bool = postprocess_depth
         self.__render_bodies: bool = render_bodies
         self.__save_frames: bool = save_frames
+        self.__save_people_masks: bool = save_people_masks
         self.__save_reconstruction: bool = save_reconstruction
         self.__save_skeletons: bool = save_skeletons
         self.__server: MappingServer = server
@@ -204,6 +208,11 @@ class OctomapMappingSystem:
                 # If the user wants to quit, do so.
                 if event.type == pygame.QUIT:
                     return
+
+            # If we're in batch mode and the server will never receive any more frames from the client, exit.
+            if self.__batch_mode and self.__server.has_finished(self.__client_id):
+                self.terminate()
+                return
 
             # Try to get the camera parameters.
             with self.__calibration_lock:
@@ -429,18 +438,34 @@ class OctomapMappingSystem:
                     # Get the skeletons that we asked the detector for, together with their associated people mask.
                     skeletons, people_mask = skeleton_detector.end_detection()
 
-                    # If an output directory has been specified and we're saving the detected skeletons:
-                    if self.__output_dir is not None and self.__save_skeletons:
-                        # Make sure the output directory exists.
-                        os.makedirs(self.__output_dir, exist_ok=True)
+                    # If an output directory has been specified:
+                    if self.__output_dir is not None:
+                        # If we're saving detected skeletons or the people masks:
+                        if self.__save_skeletons or self.__save_people_masks:
+                            # Make sure the output directory exists.
+                            os.makedirs(self.__output_dir, exist_ok=True)
 
-                        # Save the detected skeletons into a file in the output directory. Note that we use the
-                        # frame index obtained from the mapping client to determine the filename, as the reason
-                        # we're saving the skeletons is to compare them with the ground truth ones. This is made
-                        # easier if the frame numbers used are the same as the ground truth ones.
-                        SkeletonUtil.save_skeletons(
-                            os.path.join(self.__output_dir, f"{receiver.get_frame_index()}.skeletons.txt"), skeletons
-                        )
+                        # If we're saving detected skeletons:
+                        if self.__save_skeletons:
+                            # Save the detected skeletons into a file in the output directory. Note that we use the
+                            # frame index obtained from the mapping client to determine the filename, as the reason
+                            # we're saving the skeletons is to compare them with the ground truth ones. This is made
+                            # easier if the frame numbers used are the same.
+                            SkeletonUtil.save_skeletons(
+                                os.path.join(self.__output_dir, f"{receiver.get_frame_index()}.skeletons.txt"),
+                                skeletons
+                            )
+
+                        # If we're saving people masks:
+                        if self.__save_people_masks:
+                            # Save the people mask into a file in the output directory. Note that we use the
+                            # frame index obtained from the mapping client to determine the filename, as the
+                            # reason we're saving the people mask is to compare it with the ground truth one.
+                            # This is made easier if the frame numbers used are the same.
+                            cv2.imwrite(
+                                os.path.join(self.__output_dir, f"{receiver.get_frame_index()}.people.png"),
+                                people_mask
+                            )
 
                 # Otherwise:
                 else:
