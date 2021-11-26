@@ -43,12 +43,9 @@ except ImportError:
             pass
 
 try:
-    from smg.smplx import SMPLBody, SMPLPeopleMaskRenderer
+    from smg.smplx import SMPLBody
 except ImportError:
     class SMPLBody:
-        pass
-
-    class SMPLPeopleMaskRenderer:
         pass
 
 
@@ -90,6 +87,7 @@ class OctomapMappingSystem:
         :param window_size:         The size of window to use.
         """
         self.__batch_mode: bool = batch_mode
+        self.__body: Optional[SMPLBody] = None
         self.__camera_mode: str = camera_mode
         self.__client_id: int = 0
         self.__depth_estimator: MonocularDepthEstimator = depth_estimator
@@ -106,8 +104,6 @@ class OctomapMappingSystem:
         self.__save_skeletons: bool = save_skeletons
         self.__server: MappingServer = server
         self.__should_terminate: threading.Event = threading.Event()
-        self.__smpl_body: Optional[SMPLBody] = None
-        self.__smpl_people_mask_renderer: Optional[SMPLPeopleMaskRenderer] = None
         self.__tsdf_voxel_size: float = tsdf_voxel_size
         self.__use_arm_selection: bool = use_arm_selection
         self.__use_received_depth: bool = use_received_depth
@@ -182,18 +178,14 @@ class OctomapMappingSystem:
             SimpleCamera([0, 0, 0], [0, 0, 1], [0, -1, 0]), canonical_angular_speed=0.05, canonical_linear_speed=0.1
         )
 
-        # If we're rendering an SMPL body for each skeleton:
-        # if self.__render_bodies:
-        # Load in the default body model.
-        # FIXME: These paths shouldn't be hard-coded like this.
-        self.__smpl_body = SMPLBody(
-            "male",
-            # texture_coords_filename="D:/smplx/textures/smpl/texture_coords.npy",
-            # texture_image_filename="D:/smplx/textures/smpl/surreal/nongrey_male_0170.jpg"
-        )
-
-        # Create the people mask renderer in case we need it.
-        self.__smpl_people_mask_renderer = SMPLPeopleMaskRenderer(self.__smpl_body)
+        # If we're rendering an SMPL body for each skeleton, load in the default body model.
+        if self.__render_bodies:
+            # FIXME: These paths shouldn't be hard-coded like this.
+            self.__body = SMPLBody(
+                "male",
+                texture_coords_filename="D:/smplx/textures/smpl/texture_coords.npy",
+                texture_image_filename="D:/smplx/textures/smpl/surreal/nongrey_male_0170.jpg"
+            )
 
         # Start the mapping thread.
         self.__mapping_thread = threading.Thread(target=self.__run_mapping)
@@ -310,18 +302,9 @@ class OctomapMappingSystem:
                             with SkeletonRenderer.default_lighting_context():
                                 for skeleton in self.__skeletons:
                                     if self.__render_bodies:
-                                        self.__smpl_body.render_from_skeleton(skeleton)
+                                        self.__body.render_from_skeleton(skeleton)
                                     else:
                                         SkeletonRenderer.render_skeleton(skeleton)
-
-                            ##
-                            if self.__skeletons is not None:
-                                smpl_people_mask = self.__smpl_people_mask_renderer.render_people_mask(
-                                    self.__skeletons, np.linalg.inv(viewing_pose), intrinsics, *image_size
-                                )
-                                cv2.imshow("SMPL People Mask", smpl_people_mask)
-                                cv2.waitKey(1)
-                            ###
 
                             # Draw any 3D scene point that the user selected.
                             if selected_point is not None:
