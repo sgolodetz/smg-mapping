@@ -76,7 +76,7 @@ class OctomapMappingSystem:
         :param octree_voxel_size:       The voxel size (in m) to use for the Octomap.
         :param output_dir:              An optional directory into which to save output files.
         :param postprocess_depth:       Whether to post-process the depth images.
-        :param reconstruction_filename: The name of the file to which to save the reconstructed Octomap
+        :param reconstruction_filename: The name of the file to which to save the reconstructed Octomap.
         :param render_bodies:           Whether to render an SMPL body in place of each detected skeleton.
         :param save_frames:             Whether to save the sequence of frames used to reconstruct the Octomap.
         :param save_people_masks:       Whether to save the people mask for each frame.
