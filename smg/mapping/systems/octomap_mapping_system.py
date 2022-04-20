@@ -57,34 +57,36 @@ class OctomapMappingSystem:
     def __init__(self, server: MappingServer, depth_estimator: MonocularDepthEstimator, *, batch_mode: bool = False,
                  camera_mode: str = "free", detect_objects: bool = False, detect_skeletons: bool = False,
                  max_received_depth: float = 3.0, octree_voxel_size: float = 0.05, output_dir: Optional[str] = None,
-                 postprocess_depth: bool = True, render_bodies: bool = False, save_frames: bool = False,
-                 save_people_masks: bool = False, save_reconstruction: bool = False, save_skeletons: bool = False,
-                 tsdf_voxel_size: float = 0.01, use_arm_selection: bool = False, use_received_depth: bool = False,
-                 use_tsdf: bool = False, window_size: Tuple[int, int] = (640, 480)):
+                 postprocess_depth: bool = True, reconstruction_filename: str = "octree.bt",
+                 render_bodies: bool = False, save_frames: bool = False, save_people_masks: bool = False,
+                 save_reconstruction: bool = False, save_skeletons: bool = False, tsdf_voxel_size: float = 0.01,
+                 use_arm_selection: bool = False, use_received_depth: bool = False, use_tsdf: bool = False,
+                 window_size: Tuple[int, int] = (640, 480)):
         """
         Construct a mapping system that reconstructs an Octomap.
 
-        :param server:              The mapping server.
-        :param depth_estimator:     The monocular depth estimator.
-        :param batch_mode:          Whether to use batch mode.
-        :param camera_mode:         The camera mode to use (follow|free).
-        :param detect_objects:      Whether to detect 3D objects.
-        :param detect_skeletons:    Whether to detect 3D skeletons.
-        :param max_received_depth:  The maximum depth values to keep when using the received depth (pixels with
-                                    depth values greater than this will have their depths set to zero).
-        :param octree_voxel_size:   The voxel size (in m) to use for the Octomap.
-        :param output_dir:          An optional directory into which to save output files.
-        :param postprocess_depth:   Whether to post-process the depth images.
-        :param render_bodies:       Whether to render an SMPL body in place of each detected skeleton.
-        :param save_frames:         Whether to save the sequence of frames used to reconstruct the Octomap.
-        :param save_people_masks:   Whether to save the people mask for each frame.
-        :param save_reconstruction: Whether to save the reconstructed Octomap.
-        :param save_skeletons:      Whether to save the skeletons detected in each frame.
-        :param tsdf_voxel_size:     The voxel size (in m) to use for the TSDF (if we're reconstructing it).
-        :param use_arm_selection:   Whether to allow the user to select 3D points in the scene using their arm.
-        :param use_received_depth:  Whether to use depth images received from the client instead of estimating depth.
-        :param use_tsdf:            Whether to reconstruct a TSDF as well as an Octomap (for visualisation purposes).
-        :param window_size:         The size of window to use.
+        :param server:                  The mapping server.
+        :param depth_estimator:         The monocular depth estimator.
+        :param batch_mode:              Whether to use batch mode.
+        :param camera_mode:             The camera mode to use (follow|free).
+        :param detect_objects:          Whether to detect 3D objects.
+        :param detect_skeletons:        Whether to detect 3D skeletons.
+        :param max_received_depth:      The maximum depth values to keep when using the received depth (pixels with
+                                        depth values greater than this will have their depths set to zero).
+        :param octree_voxel_size:       The voxel size (in m) to use for the Octomap.
+        :param output_dir:              An optional directory into which to save output files.
+        :param postprocess_depth:       Whether to post-process the depth images.
+        :param reconstruction_filename: The name of the file to which to save the reconstructed Octomap.
+        :param render_bodies:           Whether to render an SMPL body in place of each detected skeleton.
+        :param save_frames:             Whether to save the sequence of frames used to reconstruct the Octomap.
+        :param save_people_masks:       Whether to save the people mask for each frame.
+        :param save_reconstruction:     Whether to save the reconstructed Octomap.
+        :param save_skeletons:          Whether to save the skeletons detected in each frame.
+        :param tsdf_voxel_size:         The voxel size (in m) to use for the TSDF (if we're reconstructing it).
+        :param use_arm_selection:       Whether to allow the user to select 3D points in the scene using their arm.
+        :param use_received_depth:      Whether to use depth received from the client instead of estimating depth.
+        :param use_tsdf:                Whether to reconstruct a TSDF as well as an Octomap (for visualisation).
+        :param window_size:             The size of window to use.
         """
         self.__batch_mode: bool = batch_mode
         self.__body: Optional[SMPLBody] = None
@@ -97,6 +99,7 @@ class OctomapMappingSystem:
         self.__octree_voxel_size: float = octree_voxel_size
         self.__output_dir: Optional[str] = output_dir
         self.__postprocess_depth: bool = postprocess_depth
+        self.__reconstruction_filename: str = reconstruction_filename
         self.__render_bodies: bool = render_bodies
         self.__save_frames: bool = save_frames
         self.__save_people_masks: bool = save_people_masks
@@ -342,7 +345,7 @@ class OctomapMappingSystem:
             # If an output directory has been specified and we're saving the reconstruction, save it now.
             if self.__output_dir is not None and self.__save_reconstruction:
                 os.makedirs(self.__output_dir, exist_ok=True)
-                output_filename: str = os.path.join(self.__output_dir, "octree.bt")
+                output_filename: str = os.path.join(self.__output_dir, self.__reconstruction_filename)
                 print(f"Saving octree to: {output_filename}")
                 self.__octree.write_binary(output_filename)
 
