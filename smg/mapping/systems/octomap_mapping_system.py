@@ -360,7 +360,7 @@ class OctomapMappingSystem:
 
         # Construct the octree.
         self.__octree = OcTree(self.__octree_voxel_size)
-        self.__octree.set_occupancy_thres(0.9)
+        self.__octree.set_occupancy_thres(0.7)
 
         # If requested, also construct the TSDF.
         if self.__use_tsdf:
