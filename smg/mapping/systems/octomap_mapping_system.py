@@ -18,11 +18,11 @@ from smg.comms.mapping import MappingServer
 from smg.comms.skeletons import RemoteSkeletonDetector
 from smg.meshing import MeshUtil
 from smg.open3d import ReconstructionUtil
-from smg.opengl import CameraRenderer, OpenGLMatrixContext, OpenGLTriMesh, OpenGLUtil
+from smg.opengl import OpenGLMatrixContext, OpenGLTriMesh, OpenGLUtil
 from smg.pyoctomap import CM_COLOR_HEIGHT, OctomapPicker, OctomapUtil, OcTree, OcTreeDrawer, Pointcloud, Vector3
 from smg.rigging.cameras import SimpleCamera
 from smg.rigging.controllers import KeyboardCameraController
-from smg.rigging.helpers import CameraPoseConverter, CameraUtil
+from smg.rigging.helpers import CameraPoseConverter
 from smg.skeletons import Skeleton3D, SkeletonRenderer, SkeletonUtil
 from smg.utility import GeometryUtil, ImageUtil, MonocularDepthEstimator, SequenceUtil
 
@@ -278,9 +278,6 @@ class OctomapMappingSystem:
                         # Render a voxel grid.
                         glColor3f(0.0, 0.0, 0.0)
                         OpenGLUtil.render_voxel_grid([-3, -2, -3], [3, 0, 3], [1, 1, 1], dotted=True)
-
-                        # Render coordinate axes.
-                        CameraRenderer.render_camera(CameraUtil.make_default_camera())
 
                         with self.__scene_lock:
                             # If TSDF reconstruction is enabled and 'v' is pressed:
