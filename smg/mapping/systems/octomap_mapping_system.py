@@ -275,7 +275,7 @@ class OctomapMappingSystem:
                     with OpenGLMatrixContext(GL_MODELVIEW, lambda: OpenGLUtil.load_matrix(
                         CameraPoseConverter.pose_to_modelview(viewing_pose)
                     )):
-                        # Draw the voxel grid.
+                        # Render a voxel grid.
                         glColor3f(0.0, 0.0, 0.0)
                         OpenGLUtil.render_voxel_grid([-3, -2, -3], [3, 0, 3], [1, 1, 1], dotted=True)
 
