@@ -1,7 +1,7 @@
 from setuptools import find_packages, setup
 
-# with open("README.md", "r") as fh:
-#     long_description = fh.read()
+with open("README.md", "r") as fh:
+    long_description = fh.read()
 
 setup(
     name="smg-mapping",
@@ -9,7 +9,7 @@ setup(
     author="Stuart Golodetz",
     author_email="stuart.golodetz@cs.ox.ac.uk",
     description="3D mapping systems",
-    long_description="",  #long_description,
+    long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/sgolodetz/smg-mapping",
     packages=find_packages(include=["smg.mapping", "smg.mapping.*"]),
